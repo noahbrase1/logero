@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { fetchAllTeamConversations, fetchConversations } from '../lib/messages'
 import MessagesSidebar from '../components/MessagesSidebar'
@@ -9,6 +9,8 @@ export default function MessagesPage() {
   const { id } = useParams()
   const { user, profile } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const showingList = searchParams.get('view') === 'list'
   const isAdmin = profile.role === 'admin'
 
   const [conversations, setConversations] = useState([])
@@ -59,7 +61,13 @@ export default function MessagesPage() {
   }
   if (error) return <div className="page form-error">{error}</div>
 
-  if (!id) {
+  // Jumping straight into the team channel is a nice default on first load,
+  // but it must not override an explicit request to see the chat list —
+  // otherwise, on the single-pane mobile layout, tapping "Back" out of a
+  // conversation would just bounce straight back into the same one (there's
+  // always a team channel to redirect to), leaving no way to reach the
+  // DM/Group picker or switch to a different conversation.
+  if (!id && !showingList) {
     const team = conversations.find((c) => c.type === 'team')
     if (team) return <Navigate to={`/messages/${team.id}`} replace />
   }

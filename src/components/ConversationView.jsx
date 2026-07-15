@@ -72,7 +72,7 @@ export default function ConversationView({ conversation, onConversationChanged }
   return (
     <section className="conversation-view">
       <header className="conversation-header">
-        <Link to="/messages" className="link-button conversation-back-link">
+        <Link to="/messages?view=list" className="link-button conversation-back-link">
           ← Back
         </Link>
         <h3>
