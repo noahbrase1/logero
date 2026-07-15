@@ -67,7 +67,7 @@ export default function MessagesPage() {
   const activeConversation = conversations.find((c) => c.id === id) || null
 
   return (
-    <div className="messages-page">
+    <div className={`messages-page ${activeConversation ? 'messages-page-detail' : ''}`}>
       <MessagesSidebar
         conversations={conversations}
         activeId={id}

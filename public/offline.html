@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Logero — Offline</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+        background: #faf9fb;
+        color: #2b2733;
+        text-align: center;
+        padding: 1.5rem;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #131117;
+          color: #d8d5de;
+        }
+      }
+      .card {
+        max-width: 360px;
+      }
+      img {
+        width: 56px;
+        height: 56px;
+        margin-bottom: 1rem;
+      }
+      h1 {
+        font-size: 1.3rem;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        color: #6b6375;
+        margin: 0 0 1.5rem;
+      }
+      button {
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        border-radius: 8px;
+        padding: 0.65rem 1.2rem;
+        background: #7c3aed;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img src="/icon-192.png" alt="" />
+      <h1>You're offline</h1>
+      <p>Logero can't reach the network right now. Check your connection and try again.</p>
+      <button type="button" onclick="location.reload()">Retry</button>
+    </div>
+  </body>
+</html>

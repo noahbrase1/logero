@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { fetchMessages, sendMessage, subscribeToConversation } from '../lib/messages'
@@ -71,6 +72,9 @@ export default function ConversationView({ conversation, onConversationChanged }
   return (
     <section className="conversation-view">
       <header className="conversation-header">
+        <Link to="/messages" className="link-button conversation-back-link">
+          ← Back
+        </Link>
         <h3>
           {conversation.type === 'team'
             ? 'Team channel'

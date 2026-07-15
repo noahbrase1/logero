@@ -6,7 +6,15 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#7c3aed" />
+    <!-- iOS Safari ignores manifest.json for standalone/home-screen behavior
+         and needs its own meta tags instead. apple-touch-icon above already
+         supplies the home-screen icon; these control the launch chrome. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Logero" />
     <!-- Static fallback for pre-JS load; the live tab title is set from src/config.js (APP_NAME) in main.jsx — keep these in sync. -->
     <title>Logero</title>
   </head>
