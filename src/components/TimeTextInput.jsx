@@ -39,7 +39,6 @@ export default function TimeTextInput({ value, onChange, ariaLabel, placeholder 
     <span className="time-text-input">
       <input
         type="text"
-        inputMode="numeric"
         value={text}
         onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder}
