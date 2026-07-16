@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { IconEdit, IconSearch, IconSpeakerphone } from '@tabler/icons-react'
+import { IconEdit, IconSearch, IconSpeakerphone, IconUsers } from '@tabler/icons-react'
 import { fetchApprovedAthletes, fetchCoaches } from '../lib/workouts'
 import { startDirectConversation } from '../lib/messages'
 import { formatConversationTimestamp, getInitials } from '../utils/format'
@@ -177,7 +177,13 @@ export default function MobileConversationList({ conversations, viewerId, isCoac
             <li key={c.id}>
               <Link to={`/messages/${c.id}`} className="mobile-convo-row">
                 <span className={`mobile-convo-avatar ${c.type === 'team' ? 'mobile-convo-avatar-team' : ''}`}>
-                  {c.type === 'team' ? <IconSpeakerphone size={20} /> : getInitials(name)}
+                  {c.type === 'team' ? (
+                    <IconSpeakerphone size={20} />
+                  ) : c.type === 'group' ? (
+                    <IconUsers size={20} />
+                  ) : (
+                    getInitials(name)
+                  )}
                 </span>
                 <span className="mobile-convo-text">
                   <span className="mobile-convo-name">{name}</span>

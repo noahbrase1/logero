@@ -183,15 +183,13 @@ export function formatConversationTimestamp(isoString) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-// "QA Athlete" -> "QA", "Coach" -> "C" — used for a conversation-list
-// avatar's initials when there's no photo to show.
+// "QA Athlete" -> "Q" — used for a DM conversation-row avatar's initial
+// when there's no photo to show. Group/team rows use a fixed icon instead
+// (see MobileConversationList) rather than initials, so this only ever
+// needs to disambiguate one person from another, not a whole label.
 export function getInitials(name) {
   const trimmed = (name || '').trim()
-  if (!trimmed) return '?'
-  const parts = trimmed.split(/\s+/)
-  const first = parts[0][0]
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : ''
-  return (first + last).toUpperCase()
+  return trimmed ? trimmed[0].toUpperCase() : '?'
 }
 
 // Same "times list" as summarizeReps, plus averages of the two optional
