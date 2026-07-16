@@ -7,7 +7,7 @@ export default function SuperAdminHeader() {
   const { signOut } = useAuth()
 
   return (
-    <header className="navbar">
+    <header className="navbar navbar-simple">
       <div className="navbar-brand">
         <img src="/logo.png" alt="" className="navbar-logo" />
         {APP_NAME} — Super Admin

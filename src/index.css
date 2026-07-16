@@ -515,7 +515,11 @@ label {
   }
 
   .navbar-links,
-  .navbar-user {
+  /* Excludes .navbar-simple (SuperAdminHeader) — that header has no
+     hamburger/drawer to fall back on (a super admin has no nav links at
+     all, just identity + logout), so hiding .navbar-user there would
+     remove the only way to log out on mobile with nothing replacing it. */
+  .navbar:not(.navbar-simple) .navbar-user {
     display: none;
   }
 
