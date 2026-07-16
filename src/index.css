@@ -433,7 +433,7 @@ label {
 }
 
 .navbar-logo {
-  height: 36px;
+  height: 44px;
   width: auto;
 }
 
@@ -615,8 +615,8 @@ label {
   width: 220px;
   flex-shrink: 0;
   position: sticky;
-  top: 77px;
-  max-height: calc(100vh - 100px);
+  top: 85px;
+  max-height: calc(100vh - 108px);
   overflow-y: auto;
 }
 
@@ -674,7 +674,7 @@ label {
 
 .feed-date-group {
   margin-bottom: 2rem;
-  scroll-margin-top: 77px;
+  scroll-margin-top: 85px;
 }
 
 .feed-date-heading {
@@ -1099,7 +1099,7 @@ label {
 
 .messages-page {
   display: flex;
-  height: calc(100vh - 61px);
+  height: calc(100vh - 69px);
   max-width: 1100px;
   margin: 0 auto;
   border-left: 1px solid var(--border);
