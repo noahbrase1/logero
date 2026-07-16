@@ -3,11 +3,15 @@
 -- conversation_participants).
 --
 -- Adds push_subscriptions (one row per opted-in browser/device — see
--- src/lib/pushNotifications.js) and wires a database webhook so every new
--- row in messages triggers the send-push-notification Edge Function
--- (supabase/functions/send-push-notification). Deploy that function BEFORE
--- running this file, or the trigger will just fail silently on every insert
--- until it exists.
+-- src/lib/pushNotifications.js). The database webhook that fires
+-- send-push-notification on every new message is NOT set up by this file —
+-- it needs the supabase_functions schema, which isn't pre-provisioned on
+-- every project and only gets created the first time you set up a Database
+-- Webhook, which the Dashboard does for you automatically. Create it there
+-- instead: Dashboard → Database → Webhooks → Create a new hook — table
+-- `messages`, event Insert, type "Supabase Edge Functions", function
+-- send-push-notification. Deploy the function first (see its own header
+-- comment) or the webhook will have nothing to call yet.
 --
 -- Not team-scoped like most tables in this project (see CLAUDE.md's
 -- multi-tenancy notes): a push subscription belongs to exactly one user's
@@ -59,34 +63,5 @@ create policy push_subscriptions_delete_own
   on public.push_subscriptions for delete
   using (auth.uid() = user_id);
 
--- ============================================================================
--- Database webhook: fires send-push-notification after every new message.
---
--- This is the SQL-level equivalent of what the Supabase Dashboard's
--- Database Webhooks UI generates when you point one at an Edge Function —
--- supabase_functions.http_request ships with every Supabase project (it's
--- the pg_net-backed mechanism the dashboard feature itself uses), so this
--- needs no extra setup beyond having deployed the function first.
---
--- The Edge Function is deployed with --no-verify-jwt (see its own header
--- comment for why) since this call has no end-user JWT to attach — nothing
--- secret is embedded in this trigger definition, which matters because this
--- file, like every other file in supabase/, is meant to be committed to git.
---
--- If this trigger mechanism isn't available on your project for some reason
--- (older project, extension not enabled), the fallback is identical in
--- effect: Dashboard → Database → Webhooks → create one, AFTER INSERT on
--- messages, pointing at the same Edge Function URL below.
--- ============================================================================
-
-drop trigger if exists on_message_insert_send_push on public.messages;
-create trigger on_message_insert_send_push
-  after insert on public.messages
-  for each row
-  execute function supabase_functions.http_request(
-    'https://exatzbclxoaooqjbusdj.supabase.co/functions/v1/send-push-notification',
-    'POST',
-    '{"Content-type":"application/json"}',
-    '{}',
-    '5000'
-  );
+-- The messages -> send-push-notification database webhook is created via
+-- the Dashboard (see the header comment above), not here.
