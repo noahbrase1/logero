@@ -22,13 +22,13 @@ function conversationPreview(c, viewerId) {
   return `${senderName}: ${lm.content}`
 }
 
-// iOS Messages-style single-pane inbox — the mobile counterpart to
-// MessagesSidebar (which stays as-is for desktop, where it sits alongside
-// the conversation pane rather than needing to replace it). Rendered
-// unconditionally alongside MessagesSidebar in MessagesPage; which one is
-// visible is purely a CSS media-query concern, same pattern as the
-// NavBar/navbar-drawer split.
-export default function MobileConversationList({ conversations, viewerId, isCoach, canMessage, onStartedDM, onCreatedGroup }) {
+// iOS Messages-style conversation list — the sidebar's entire visual
+// treatment (avatars, previews, timestamps, unread dots, search, compose
+// button), not just a mobile-only variant. Desktop renders it as a
+// fixed-width panel beside the conversation pane; below the mobile
+// breakpoint it switches to a full-width single-pane list/detail view
+// (see the `.mobile-inbox`/`.messages-page-detail` rules in index.css).
+export default function ConversationList({ conversations, activeId, viewerId, isCoach, canMessage, onStartedDM, onCreatedGroup }) {
   const [query, setQuery] = useState('')
   const [composeOpen, setComposeOpen] = useState(false)
   const [panel, setPanel] = useState(null) // null | 'dm' | 'group'
@@ -175,7 +175,10 @@ export default function MobileConversationList({ conversations, viewerId, isCoac
           const unread = unreadIds.has(c.id)
           return (
             <li key={c.id}>
-              <Link to={`/messages/${c.id}`} className="mobile-convo-row">
+              <Link
+                to={`/messages/${c.id}`}
+                className={`mobile-convo-row ${c.id === activeId ? 'mobile-convo-row-active' : ''}`}
+              >
                 <span className={`mobile-convo-avatar ${c.type === 'team' ? 'mobile-convo-avatar-team' : ''}`}>
                   {c.type === 'team' ? (
                     <IconSpeakerphone size={20} />

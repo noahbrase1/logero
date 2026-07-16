@@ -2,8 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { fetchAllTeamConversations, fetchConversations, fetchLastMessagesForConversations } from '../lib/messages'
-import MessagesSidebar from '../components/MessagesSidebar'
-import MobileConversationList from '../components/MobileConversationList'
+import ConversationList from '../components/ConversationList'
 import ConversationView from '../components/ConversationView'
 
 export default function MessagesPage() {
@@ -79,16 +78,9 @@ export default function MessagesPage() {
 
   return (
     <div className={`messages-page ${activeConversation ? 'messages-page-detail' : ''}`}>
-      <MessagesSidebar
+      <ConversationList
         conversations={conversations}
         activeId={id}
-        isCoach={profile.role === 'coach'}
-        canMessage={!isAdmin}
-        onStartedDM={handleStartedDM}
-        onCreatedGroup={handleCreatedGroup}
-      />
-      <MobileConversationList
-        conversations={conversations}
         viewerId={user.id}
         isCoach={profile.role === 'coach'}
         canMessage={!isAdmin}
