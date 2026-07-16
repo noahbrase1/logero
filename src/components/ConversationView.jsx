@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { fetchMessages, sendMessage, subscribeToConversation } from '../lib/messages'
+import { markConversationSeen } from '../utils/conversationReadState'
 import GroupManageControls from './GroupManageControls'
 
 export default function ConversationView({ conversation, onConversationChanged }) {
@@ -28,7 +29,11 @@ export default function ConversationView({ conversation, onConversationChanged }
     setError('')
     fetchMessages(conversation.id)
       .then((data) => {
-        if (!cancelled) setMessages(data)
+        if (!cancelled) {
+          setMessages(data)
+          const last = data[data.length - 1]
+          markConversationSeen(user.id, conversation.id, last ? last.created_at : new Date().toISOString())
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err.message)
@@ -39,6 +44,7 @@ export default function ConversationView({ conversation, onConversationChanged }
 
     const unsubscribe = subscribeToConversation(conversation.id, (newMessage) => {
       setMessages((prev) => (prev.some((m) => m.id === newMessage.id) ? prev : [...prev, newMessage]))
+      markConversationSeen(user.id, conversation.id, newMessage.created_at)
     })
 
     return () => {

@@ -166,6 +166,34 @@ export function summarizeReps(distanceMeters, reps) {
   return { timesText, avgPace }
 }
 
+// "8:42 AM" for a message sent today, "Yesterday", the weekday name within
+// the past week, otherwise a short date — used by the mobile conversation
+// list's per-row timestamp.
+export function formatConversationTimestamp(isoString) {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const dayDiff = Math.round((startOfToday - startOfDate) / (1000 * 60 * 60 * 24))
+
+  if (dayDiff <= 0) return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  if (dayDiff === 1) return 'Yesterday'
+  if (dayDiff < 7) return date.toLocaleDateString(undefined, { weekday: 'long' })
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+// "QA Athlete" -> "QA", "Coach" -> "C" — used for a conversation-list
+// avatar's initials when there's no photo to show.
+export function getInitials(name) {
+  const trimmed = (name || '').trim()
+  if (!trimmed) return '?'
+  const parts = trimmed.split(/\s+/)
+  const first = parts[0][0]
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : ''
+  return (first + last).toUpperCase()
+}
+
 // Same "times list" as summarizeReps, plus averages of the two optional
 // per-rep power-meter/cadence-sensor fields — averaged only across reps that
 // actually have a value, since not every rep (or every athlete) tracks them.

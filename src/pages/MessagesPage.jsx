@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { fetchAllTeamConversations, fetchConversations } from '../lib/messages'
+import { fetchAllTeamConversations, fetchConversations, fetchLastMessagesForConversations } from '../lib/messages'
 import MessagesSidebar from '../components/MessagesSidebar'
+import MobileConversationList from '../components/MobileConversationList'
 import ConversationView from '../components/ConversationView'
 
 export default function MessagesPage() {
@@ -20,8 +21,10 @@ export default function MessagesPage() {
   const loadConversations = useCallback(async () => {
     try {
       const data = isAdmin ? await fetchAllTeamConversations(user.id) : await fetchConversations(user.id)
-      setConversations(data)
-      return data
+      const lastMessages = await fetchLastMessagesForConversations(data.map((c) => c.id))
+      const withPreviews = data.map((c) => ({ ...c, lastMessage: lastMessages[c.id] || null }))
+      setConversations(withPreviews)
+      return withPreviews
     } catch (err) {
       setError(err.message)
       return []
@@ -79,6 +82,14 @@ export default function MessagesPage() {
       <MessagesSidebar
         conversations={conversations}
         activeId={id}
+        isCoach={profile.role === 'coach'}
+        canMessage={!isAdmin}
+        onStartedDM={handleStartedDM}
+        onCreatedGroup={handleCreatedGroup}
+      />
+      <MobileConversationList
+        conversations={conversations}
+        viewerId={user.id}
         isCoach={profile.role === 'coach'}
         canMessage={!isAdmin}
         onStartedDM={handleStartedDM}

@@ -93,6 +93,35 @@ export async function fetchAllTeamConversations(userId) {
   return hydrateConversations(rawConversations, allParticipants, userId)
 }
 
+// Latest message per conversation, for the mobile conversation list's
+// preview/timestamp — keyed by conversation_id. PostgREST has no "latest N
+// per group" query, so this pulls the most recent messages across all the
+// given conversations (capped, since a chatty team's full history isn't
+// needed) and keeps only the first (most recent, thanks to the sort) row
+// seen per conversation. Fine at this app's scale; would need a proper
+// per-conversation query (or a view) if a team ever had enough simultaneous
+// conversation volume for 300 messages to not cover everyone's latest.
+export async function fetchLastMessagesForConversations(conversationIds) {
+  if (!conversationIds || conversationIds.length === 0) return {}
+
+  const { data, error } = await supabase
+    .from('messages')
+    .select('conversation_id, content, sender_id, created_at, profiles(name)')
+    .in('conversation_id', conversationIds)
+    .order('created_at', { ascending: false })
+    .limit(300)
+
+  if (error) throw error
+
+  const byConversation = {}
+  for (const m of data) {
+    if (!byConversation[m.conversation_id]) {
+      byConversation[m.conversation_id] = m
+    }
+  }
+  return byConversation
+}
+
 export async function fetchMessages(conversationId) {
   const { data, error } = await supabase
     .from('messages')

@@ -1115,6 +1115,14 @@ label {
   overflow-y: auto;
 }
 
+/* Mobile counterpart to .messages-sidebar (see MobileConversationList) —
+   hidden on desktop by default; the mobile media query below swaps which
+   of the two is shown. Full rule set lives there since it's meaningless
+   outside that breakpoint. */
+.mobile-inbox {
+  display: none;
+}
+
 .messages-sidebar-header {
   display: flex;
   flex-direction: column;
@@ -2476,22 +2484,26 @@ button.link-button.danger {
 
   /* Messages: a fixed 260px sidebar plus a conversation pane doesn't fit a
      375px screen at all, so below this width it becomes a single-pane
-     list/detail view instead — sidebar only when no conversation is
-     selected, conversation only (full width, with a Back link) once one
-     is. `.messages-page-detail` is set by MessagesPage based on whether
-     a conversation is currently active (same state the route already
-     tracks via the `:id` param). */
+     list/detail view instead — the iOS-Messages-style .mobile-inbox (an
+     entirely different component, MobileConversationList, from the desktop
+     .messages-sidebar) when no conversation is selected, the conversation
+     itself (full width, with a Back link) once one is. `.messages-page-detail`
+     is set by MessagesPage based on whether a conversation is currently
+     active (same state the route already tracks via the `:id` param). */
   .messages-page {
     border-left: none;
     border-right: none;
   }
 
   .messages-sidebar {
-    width: 100%;
+    display: none;
   }
 
-  .messages-page-detail .messages-sidebar {
-    display: none;
+  .messages-page:not(.messages-page-detail) .mobile-inbox {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
   }
 
   .messages-page:not(.messages-page-detail) .conversation-view,
@@ -2501,6 +2513,207 @@ button.link-button.danger {
 
   .conversation-back-link {
     display: inline-block;
+  }
+
+  /* --- Mobile conversation inbox (MobileConversationList) --- */
+
+  .mobile-inbox-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-4) var(--space-2);
+  }
+
+  .mobile-inbox-header h1 {
+    margin: 0;
+    padding-left: 0;
+  }
+
+  .mobile-inbox-header h1::before {
+    display: none;
+  }
+
+  .mobile-inbox-compose-wrap {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .mobile-inbox-compose {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: var(--radius-pill);
+    background: var(--accent-bg);
+    color: var(--accent);
+    box-shadow: none;
+  }
+
+  .mobile-inbox-compose:hover:not(:disabled) {
+    background: var(--accent);
+    color: white;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .mobile-inbox-compose-menu {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    right: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    min-width: 190px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+  }
+
+  .mobile-inbox-compose-menu button {
+    background: none;
+    color: var(--text);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .mobile-inbox-compose-menu button:hover:not(:disabled) {
+    background: var(--accent-bg);
+    color: var(--accent);
+    transform: none;
+    box-shadow: none;
+  }
+
+  .mobile-inbox-search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0 var(--space-4) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .mobile-inbox-search input {
+    flex: 1;
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--text);
+  }
+
+  .mobile-inbox-search input:focus {
+    outline: none;
+    box-shadow: none;
+  }
+
+  .mobile-inbox .dm-picker {
+    margin: 0 var(--space-4) var(--space-3);
+  }
+
+  .mobile-convo-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .mobile-convo-list .empty-state {
+    margin: var(--space-4);
+  }
+
+  .mobile-convo-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    text-decoration: none;
+    color: var(--text);
+  }
+
+  .mobile-convo-row:hover {
+    background: var(--accent-bg);
+    text-decoration: none;
+  }
+
+  .mobile-convo-avatar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-pill);
+    background: var(--text-muted);
+    color: white;
+    font-weight: 700;
+    font-size: var(--font-size-sm);
+  }
+
+  /* The team channel's avatar uses the team's own customizable accent
+     color (see ThemeContext) rather than the neutral gray every DM/group
+     avatar gets, so it always reads as the primary channel regardless of
+     which team's page you're on. */
+  .mobile-convo-avatar-team {
+    background: var(--accent);
+  }
+
+  .mobile-convo-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .mobile-convo-name {
+    font-weight: 600;
+    color: var(--text-h);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-convo-preview {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-convo-meta {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.4rem;
+  }
+
+  .mobile-convo-time {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .mobile-convo-unread-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    align-self: flex-end;
   }
 }
 
