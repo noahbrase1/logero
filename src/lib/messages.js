@@ -1,7 +1,5 @@
 import { supabase } from './supabaseClient'
 
-const TYPE_ORDER = { team: 0, group: 1, direct: 2 }
-
 // Shared by fetchConversations() and fetchAllTeamConversations(): given a
 // flat conversation list and every participant row for those conversations,
 // builds the shape both the sidebar and ConversationView expect.
@@ -38,12 +36,10 @@ function hydrateConversations(rawConversations, allParticipants, viewerId) {
     }
   })
 
-  return conversations.sort((a, b) => {
-    if (a.type !== b.type) return TYPE_ORDER[a.type] - TYPE_ORDER[b.type]
-    const aLabel = a.type === 'direct' ? a.directLabel : a.name
-    const bLabel = b.type === 'direct' ? b.directLabel : b.name
-    return (aLabel || '').localeCompare(bLabel || '')
-  })
+  // Unsorted here — the caller (MessagesPage) re-sorts once it has each
+  // conversation's last message, since "most recent activity" isn't known
+  // yet at this point.
+  return conversations
 }
 
 // Returns the current user's conversations (team channel first, then

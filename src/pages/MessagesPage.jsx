@@ -5,6 +5,20 @@ import { fetchAllTeamConversations, fetchConversations, fetchLastMessagesForConv
 import ConversationList from '../components/ConversationList'
 import ConversationView from '../components/ConversationView'
 
+// Team channel always first, then most-recent-activity first — a
+// conversation with no messages yet falls back to its own created_at so it
+// still slots in somewhere sensible relative to other empty conversations
+// rather than jumping around.
+function sortByRecency(conversations) {
+  return [...conversations].sort((a, b) => {
+    if (a.type === 'team') return -1
+    if (b.type === 'team') return 1
+    const aTime = a.lastMessage?.created_at || a.created_at
+    const bTime = b.lastMessage?.created_at || b.created_at
+    return new Date(bTime) - new Date(aTime)
+  })
+}
+
 export default function MessagesPage() {
   const { id } = useParams()
   const { user, profile } = useAuth()
@@ -21,7 +35,7 @@ export default function MessagesPage() {
     try {
       const data = isAdmin ? await fetchAllTeamConversations(user.id) : await fetchConversations(user.id)
       const lastMessages = await fetchLastMessagesForConversations(data.map((c) => c.id))
-      const withPreviews = data.map((c) => ({ ...c, lastMessage: lastMessages[c.id] || null }))
+      const withPreviews = sortByRecency(data.map((c) => ({ ...c, lastMessage: lastMessages[c.id] || null })))
       setConversations(withPreviews)
       return withPreviews
     } catch (err) {
