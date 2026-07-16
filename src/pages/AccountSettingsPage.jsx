@@ -1,9 +1,53 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { updateOwnEmail, updateOwnName, updateOwnPassword } from '../lib/account'
+import {
+  disablePushNotifications,
+  enablePushNotifications,
+  getCurrentSubscription,
+  isPushSupported,
+} from '../lib/pushNotifications'
 
 export default function AccountSettingsPage() {
   const { user, profile, refreshProfile } = useAuth()
+
+  const pushSupported = isPushSupported()
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushChecking, setPushChecking] = useState(pushSupported)
+  const [pushSaving, setPushSaving] = useState(false)
+  const [pushError, setPushError] = useState('')
+  const [pushBlocked, setPushBlocked] = useState(false)
+
+  useEffect(() => {
+    if (!pushSupported) return
+    setPushBlocked(Notification.permission === 'denied')
+    getCurrentSubscription()
+      .then((sub) => setPushEnabled(Boolean(sub)))
+      .finally(() => setPushChecking(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function handlePushToggle(e) {
+    const wantsOn = e.target.checked
+    setPushError('')
+    setPushSaving(true)
+    try {
+      if (wantsOn) {
+        await enablePushNotifications(user.id)
+        setPushEnabled(true)
+        setPushBlocked(false)
+      } else {
+        await disablePushNotifications(user.id)
+        setPushEnabled(false)
+      }
+    } catch (err) {
+      setPushError(err.message)
+      setPushBlocked(Notification.permission === 'denied')
+      setPushEnabled(Boolean(await getCurrentSubscription()))
+    } finally {
+      setPushSaving(false)
+    }
+  }
 
   const [name, setName] = useState(profile?.name || '')
   const [nameSaving, setNameSaving] = useState(false)
@@ -165,6 +209,41 @@ export default function AccountSettingsPage() {
             {passwordSaving ? 'Updating…' : 'Update password'}
           </button>
         </form>
+      </div>
+
+      <div className="theme-settings">
+        <h2 className="events-section-heading">Notifications</h2>
+        {!pushSupported ? (
+          <p className="page-subtitle">Push notifications aren't supported in this browser.</p>
+        ) : (
+          <>
+            <label className="toggle-row">
+              <span className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={pushEnabled}
+                  onChange={handlePushToggle}
+                  disabled={pushChecking || pushSaving || pushBlocked}
+                />
+                <span className="toggle-track" aria-hidden="true" />
+              </span>
+              <span>
+                <strong>Push notifications</strong>
+                <br />
+                <span className="page-subtitle" style={{ marginTop: 0 }}>
+                  Get notified when you receive a new message.
+                </span>
+              </span>
+            </label>
+            {pushBlocked && (
+              <p className="form-error">
+                Notifications are blocked for this site. To turn them on, allow notifications for this site in your
+                browser or phone's settings, then reload this page.
+              </p>
+            )}
+            {pushError && !pushBlocked && <p className="form-error">{pushError}</p>}
+          </>
+        )}
       </div>
     </div>
   )

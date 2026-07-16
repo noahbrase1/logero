@@ -86,3 +86,51 @@ self.addEventListener('fetch', (event) => {
       .catch(() => caches.match(request))
   )
 })
+
+// --- Push notifications ---
+// The payload is set by the send-push-notification Edge Function as JSON:
+// { title, body, url }. `url` is where notificationclick below should send
+// the user — e.g. /messages/<conversation-id> for a new message.
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = { title: 'Logero', body: event.data ? event.data.text() : '' }
+  }
+
+  const title = data.title || 'Logero'
+  const options = {
+    body: data.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: data.url || '/' },
+  }
+
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+// Focuses an already-open tab on the target page if one exists, navigates an
+// already-open tab there if not, or opens a new one as a last resort —
+// rather than always opening a fresh tab regardless of what's already open.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const targetUrl = event.notification.data?.url || '/'
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsList) => {
+      for (const client of clientsList) {
+        if (new URL(client.url).pathname === targetUrl && 'focus' in client) {
+          return client.focus()
+        }
+      }
+      for (const client of clientsList) {
+        if ('focus' in client) {
+          client.focus()
+          return 'navigate' in client ? client.navigate(targetUrl) : undefined
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl)
+    })
+  )
+})
