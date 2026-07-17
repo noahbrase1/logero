@@ -5,6 +5,14 @@ import { fetchAllTeamConversations, fetchConversations, fetchLastMessagesForConv
 import ConversationList from '../components/ConversationList'
 import ConversationView from '../components/ConversationView'
 
+// Matches the CSS breakpoint where Messages switches to the single-pane
+// mobile layout (see index.css) — the auto-jump-to-team-channel default
+// below is only skipped at this width, since it's only there that jumping
+// straight into a conversation hides the list entirely rather than just
+// leaving it visible alongside.
+const isMobileMessagesLayout = () =>
+  typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+
 // Team channel always first, then most-recent-activity first — a
 // conversation with no messages yet falls back to its own created_at so it
 // still slots in somewhere sensible relative to other empty conversations
@@ -77,13 +85,15 @@ export default function MessagesPage() {
   }
   if (error) return <div className="page form-error">{error}</div>
 
-  // Jumping straight into the team channel is a nice default on first load,
-  // but it must not override an explicit request to see the chat list —
-  // otherwise, on the single-pane mobile layout, tapping "Back" out of a
-  // conversation would just bounce straight back into the same one (there's
-  // always a team channel to redirect to), leaving no way to reach the
-  // DM/Group picker or switch to a different conversation.
-  if (!id && !showingList) {
+  // Jumping straight into the team channel is a nice default on desktop,
+  // where the conversation list stays visible alongside it regardless. On
+  // the single-pane mobile layout it's the opposite of what's wanted —
+  // tapping "Messages" in the nav should land on the list of chats, not
+  // hide it behind whichever conversation happens to auto-open (and
+  // without this, tapping "Back" out of a conversation would also just
+  // bounce straight back into the same one, since there's always a team
+  // channel to redirect to).
+  if (!id && !showingList && !isMobileMessagesLayout()) {
     const team = conversations.find((c) => c.type === 'team')
     if (team) return <Navigate to={`/messages/${team.id}`} replace />
   }
