@@ -242,6 +242,7 @@ label {
   font-size: var(--font-size-sm);
   color: var(--text-muted);
   flex: 1;
+  min-width: 0;
 }
 
 /* --- Standardized card surfaces: consistent radius/shadow/hover across the
@@ -741,6 +742,7 @@ label {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1rem;
+  min-width: 0;
 }
 
 .splits-fieldset legend {
@@ -2070,6 +2072,7 @@ button.link-button.danger {
   border-radius: 8px;
   padding: 0.85rem;
   background: var(--bg);
+  min-width: 0;
 }
 
 .segment-editor-header {
@@ -2087,6 +2090,7 @@ button.link-button.danger {
 
 .segment-label-input {
   flex: 1;
+  min-width: 0;
 }
 
 .segment-editor-actions {
@@ -2115,7 +2119,8 @@ button.link-button.danger {
 .segment-rep-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
 }
 
 .segment-rep-label {
