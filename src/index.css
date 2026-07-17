@@ -242,7 +242,6 @@ label {
   font-size: var(--font-size-sm);
   color: var(--text-muted);
   flex: 1;
-  min-width: 0;
 }
 
 /* --- Standardized card surfaces: consistent radius/shadow/hover across the
