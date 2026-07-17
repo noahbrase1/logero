@@ -15,17 +15,25 @@ There is no test suite in this project.
 
 **Node version**: the system default `node` may be too old for this project's Vite version (which requires Node 18+). If `npm run dev`/`npm run build` fail outright, switch to a newer Node first, e.g. `nvm use 20`.
 
-**Environment**: Supabase connection lives in `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`), read by `src/lib/supabaseClient.js`. `.env.example` documents the shape without values.
+**Environment**: Supabase connection lives in `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`), read by `src/lib/supabaseClient.js`. `VITE_VAPID_PUBLIC_KEY` (see "Push notifications" below) lives there too — safe to expose, it's the public half of a VAPID key pair. `.env.example` documents the shape without values.
+
+**Deployment**: see "Deployment: Cloudflare Workers" below — this is not a local-only project, it's live at a `*.workers.dev` URL, redeploying automatically on every push to `main`.
 
 ## Project structure
 
 ```
-index.html                     # Vite entry; static <title> fallback (kept in sync with src/config.js)
+index.html                     # Vite entry; static <title> fallback (kept in sync with src/config.js); PWA meta tags (manifest link, apple-mobile-web-app-*, theme-color) — see "Mobile & PWA" below
 vite.config.js
+wrangler.jsonc                  # Cloudflare Workers static-assets deploy config — see "Deployment" below
 package.json
-.env / .env.example             # Supabase URL + anon key (see Environment above)
+.env / .env.example             # Supabase URL + anon key + VITE_VAPID_PUBLIC_KEY (see Environment above)
 
-public/                         # favicons, apple-touch-icon, logo.png (transparent), logo-source.png (original)
+public/                         # favicons, apple-touch-icon.png, logo.png — all generated from infinity.png (the source artwork; wide/non-square, so icons are built from a square canvas centered on the shape's own bounding box, not a plain crop — see "Mobile & PWA" below for the transparent-vs-opaque split)
+├── manifest.json                # PWA manifest — name/icons/theme_color/display:standalone
+├── service-worker.js            # app-shell caching + push notification handling — see "Mobile & PWA" below
+├── offline.html                 # precached fallback page shown for a failed navigation with nothing cached yet
+├── icon-192.png / icon-512.png  # PWA install icons — opaque (Apple/Android home-screen icon guidance), unlike favicon.svg/logo.png which are transparent
+└── icons.svg / logo-source.png  # unused leftovers, not referenced by any code — harmless, not wired into anything
 
 supabase/                       # additive .sql files, run by hand and in order — see "Supabase schema" below
 ├── schema.sql                  # profiles/workouts/running_splits/lifting_exercises + core RLS helpers (is_coach, is_athlete)
@@ -50,9 +58,13 @@ supabase/                       # additive .sql files, run by hand and in order 
 ├── reject_pending_delete_schema.sql  # rejecting a pending signup deletes the auth.users row outright (not a soft-remove), freeing the email for re-signup
 ├── swimming_schema.sql         # adds workouts.type = 'swim' + assigned_workouts.type = 'swim'; swim_segments/swim_segment_reps mirror running_segments/running_segment_reps (distance_unit adds 'yards'); assigned_swim_segments mirrors assigned_running_segments — team_id is NOT NULL from creation (not backfilled later) since multi-tenancy already existed when this file was written
 ├── cycling_schema.sql          # adds workouts.type = 'bike' + assigned_workouts.type = 'bike'; bike_segments/bike_segment_reps mirror swim_segments/swim_segment_reps but distance_unit is miles/km only, and bike_segment_reps adds two OPTIONAL per-rep columns (avg_watts, avg_cadence) with no default, left null when an athlete has no power meter/cadence sensor; assigned_bike_segments mirrors assigned_swim_segments (target time only — no target watts/cadence)
-└── event_times_schema.sql      # adds events.start_time / events.end_time (both nullable time columns, no RLS change — the existing coach-only insert/update policies already gate the whole row)
+├── event_times_schema.sql      # adds events.start_time / events.end_time (both nullable time columns, no RLS change — the existing coach-only insert/update policies already gate the whole row)
+└── push_notifications_schema.sql # push_subscriptions table + RLS only — deliberately does NOT create the messages→send-push-notification database webhook in SQL (see "Push notifications" below for why); that part is set up by hand in the Dashboard
 
 reset_all_data.sql is a separate, standalone destructive utility (truncates every application table) for wiping a dev database back to empty — it is not part of the ordered chain above and should never be run against real data without explicit confirmation.
+
+supabase/functions/                # Supabase Edge Functions (Deno) — see "Push notifications" below. The only one in the project so far:
+└── send-push-notification/index.ts # triggered by a Database Webhook on new `messages` rows; sends Web Push via VAPID keys held as function secrets, never in this repo
 
 src/
 ├── main.jsx                    # React root; sets document.title from config.js
@@ -74,7 +86,8 @@ src/
 │   ├── teamSettings.js           # team_settings read/update (RLS-scoped to the caller's own team)
 │   ├── workoutComments.js        # coach comments on a workout
 │   ├── teams.js                  # invite-code resolution, self-service team creation, super-admin stats/pending-teams/approve/reject
-│   └── account.js                # self-service name/email/password updates — see "Account self-service" below
+│   ├── account.js                # self-service name/email/password updates — see "Account self-service" below
+│   └── pushNotifications.js      # Push API subscribe/unsubscribe + push_subscriptions upsert/delete — see "Push notifications" below
 │
 ├── pages/                      # one component per route registered in App.jsx
 │   ├── LoginPage.jsx / SignUpPage.jsx / CreateTeamPage.jsx   # SignUpPage = invite-code flow; CreateTeamPage = public self-service team creation
@@ -87,26 +100,27 @@ src/
 │   ├── PendingApprovalsPage.jsx  # coach-only; Approve as Athlete/Coach/Admin, or Reject (deletes the account outright)
 │   ├── MessagesPage.jsx          # shared, branches on profile.role internally — admin sees every team conversation, not just its own
 │   ├── TeamSettingsPage.jsx      # coach edits / admin views theme, plus the team's invite link
-│   ├── AccountSettingsPage.jsx   # self-service name/email/password — any logged-in athlete/coach/admin
+│   ├── AccountSettingsPage.jsx   # self-service name/email/password, plus a push-notifications opt-in toggle — any logged-in athlete/coach/admin
 │   ├── EventsPage.jsx / EventDetailPage.jsx   # shared
 │   ├── CoachAssignmentsPage.jsx / AthleteAssignmentsPage.jsx   # CoachAssignmentsPage is also used read-only by admin
 │   └── SuperAdminPage.jsx        # the entire standalone super-admin experience — see "Super admin" below
 │
 ├── components/                 # shared/reusable pieces used across pages
-│   ├── NavBar.jsx                # coach/admin/athlete nav — never rendered for a super admin
-│   ├── SuperAdminHeader.jsx      # minimal header for the super-admin-only branch; deliberately not a NavBar variant
+│   ├── NavBar.jsx                # coach/admin/athlete nav — never rendered for a super admin; hamburger + slide-out drawer below ~860px (see "Mobile & PWA" below), full row above it
+│   ├── SuperAdminHeader.jsx      # minimal header for the super-admin-only branch; deliberately not a NavBar variant — no drawer, so its logout button needs its own carve-out from NavBar's mobile CSS (`.navbar-simple`)
 │   ├── TeamStatusBanner.jsx      # renders when the caller's team is pending/rejected, null otherwise
 │   ├── WorkoutListItem.jsx       # dispatches WorkoutCard vs QuickNoteCard by workout.type
 │   ├── WorkoutCard.jsx / QuickNoteCard.jsx / QuickNoteForm.jsx / WorkoutComments.jsx
-│   ├── RunningSegmentsEditor.jsx / AssignedSegmentsEditor.jsx / SwimSegmentsEditor.jsx / AssignedSwimSegmentsEditor.jsx / BikeSegmentsEditor.jsx / AssignedBikeSegmentsEditor.jsx / TimeTextInput.jsx
+│   ├── RunningSegmentsEditor.jsx / AssignedSegmentsEditor.jsx / SwimSegmentsEditor.jsx / AssignedSwimSegmentsEditor.jsx / BikeSegmentsEditor.jsx / AssignedBikeSegmentsEditor.jsx / TimeTextInput.jsx  # TimeTextInput deliberately has no `inputMode="numeric"` — that forces mobile's digit-only keypad, which has no colon key, making "6:45"-style values impossible to type
 │   ├── TargetVsActual.jsx        # renders assignment target vs. logged actual
-│   ├── MessagesSidebar.jsx / ConversationView.jsx / GroupCreateForm.jsx / GroupManageControls.jsx
+│   ├── ConversationList.jsx / ConversationView.jsx / GroupCreateForm.jsx / GroupManageControls.jsx  # ConversationList is the iOS-Messages-style avatar/preview/timestamp row list — used at every screen size (not just mobile, despite some `.mobile-inbox`/`.mobile-convo-*` CSS class names left over from when it was mobile-only), see "Messaging" below
 │   ├── EventEntryForm.jsx / AthleteChecklist.jsx / EventCard.jsx / EventForm.jsx / EventCalendar.jsx
 │   ├── WorkoutTypeIcon.jsx / RunnerSprite.jsx  # fixed sport-type icon; looping login/signup hero animation — see "Team color theming" / "Auth pages" below
 │   └── StatRow.jsx / MetricCardRow.jsx / Skeleton.jsx  # dashboard-stat tiles (plain vs. bold-colored) and loading-placeholder primitives
 │
 └── utils/                       # pure helpers, no Supabase calls
-    ├── format.js                 # date/time/pace formatting
+    ├── format.js                 # date/time/pace formatting, plus getInitials()/formatConversationTimestamp() for the conversation list
+    ├── conversationReadState.js  # localStorage-based "last seen per conversation" for the unread dot — see "Messaging" below for why this is client-side, not a schema column
     ├── lineup.js                 # meet-lineup grouping/sorting logic
     └── lineupPdf.js               # PDF export (jspdf)
 ```
@@ -153,11 +167,11 @@ Every other table that previously had an `is_super_admin()` RLS bypass branch (`
 
 ### Data layer convention
 
-Every Supabase query is wrapped in a `src/lib/*.js` module, one per domain (`workouts.js`, `messages.js`, `assignments.js`, `events.js`, `teamSettings.js`, `workoutComments.js`, `teams.js`, `account.js`). Pages and components call these functions and never import `supabaseClient` directly. Follow this pattern for new data access rather than inlining `supabase.from(...)` calls in components.
+Every Supabase query is wrapped in a `src/lib/*.js` module, one per domain (`workouts.js`, `messages.js`, `assignments.js`, `events.js`, `teamSettings.js`, `workoutComments.js`, `teams.js`, `account.js`, `pushNotifications.js`). Pages and components call these functions and never import `supabaseClient` directly. Follow this pattern for new data access rather than inlining `supabase.from(...)` calls in components.
 
 ### Supabase schema — additive SQL files, run manually
 
-There is no Supabase CLI / migration tooling wired up. Schema changes are plain `.sql` files under `supabase/`, meant to be pasted into the Supabase SQL editor by hand, **in order** — see the full annotated list in "Project structure" above for what each one does; the run order is exactly the order listed there.
+There is no *migration* tooling wired up for schema changes — those are plain `.sql` files under `supabase/`, meant to be pasted into the Supabase SQL editor by hand, **in order** — see the full annotated list in "Project structure" above for what each one does; the run order is exactly the order listed there. The Supabase CLI (`npx supabase ...`, no local install needed) is used for one thing only: deploying the Edge Function (see "Push notifications" below) — `supabase functions deploy` and `supabase secrets set`, not schema/migrations.
 
 Each file is written to be idempotent (`create table if not exists`, `drop policy if exists` before `create policy`, etc.) so it's safe to re-run. **Never edit a file that may have already been run against the live database** — add a new additive file instead, matching the existing naming/dating pattern, and note which prior file(s) it depends on in its header comment.
 
@@ -168,6 +182,8 @@ Non-obvious pitfalls hit repeatedly while building this schema, worth knowing be
 3. **`CREATE OR REPLACE FUNCTION` can't change a function's return columns.** Changing a `RETURNS TABLE (...)` shape (e.g. dropping/adding a column) needs an explicit `DROP FUNCTION` first — `CREATE OR REPLACE` alone fails with `cannot change return type of existing function`. See the `drop function if exists public.get_team_stats();` in `standalone_super_admin_schema.sql`.
 4. **A `RETURN QUERY` column type must match the declared return type exactly, not just "compatibly."** `auth.users.email` is `character varying`, not `text` — returning it uncast from a function declared `returns table (... founder_email text)` fails at *call time* (not at `CREATE FUNCTION` time) with `structure of query does not match function result type`. Cast explicitly (`u.email::text`) whenever pulling a `varchar` column into a `text`-typed return column.
 5. **A trigger that only fires `AFTER UPDATE` misses rows created with the target state already set.** `add_user_to_team_conversation()` only ran on `AFTER UPDATE ... WHEN (old.role IS DISTINCT FROM new.role AND new.role IN (...))`, which by definition never fires for a row `INSERT`ed with that role already in place — exactly what happens for a founding coach (`INSERT ... role = 'coach'` directly, never a `'pending' → 'coach'` update). Fixed with a second, INSERT-scoped trigger sharing the same function (`founding_coach_team_channel_fix.sql`). Worth checking for the same gap any time a row can be created *already* in a state that's normally only reached via an update.
+6. **`supabase_functions.http_request` (the trigger-based way to call an Edge Function from SQL) needs the `supabase_functions` schema, which isn't pre-provisioned on every project.** It's only created the first time a project sets up a Database Webhook — a committed SQL trigger calling it on a project that's never used Database Webhooks before fails with `schema "supabase_functions" does not exist`. The Dashboard's own webhook-creation UI provisions that schema automatically as a side effect, so that's the reliable path for a project's *first* webhook rather than trying to replicate it in raw SQL upfront — see `push_notifications_schema.sql`'s header comment, which only creates the underlying table there and leaves the webhook itself to the Dashboard.
+7. **PostgREST's `.upsert(..., { onConflict: 'col1,col2' })` needs a real unique constraint on plain columns — it can't reliably target one defined on a jsonb expression index.** `push_subscriptions` originally tried a unique index on `(user_id, (subscription ->> 'endpoint'))` to dedupe by device without a redundant column; the client-side upsert couldn't resolve it. Fixed by duplicating `endpoint` as its own real `text` column with a plain unique constraint on `(user_id, endpoint)`, even though the same value already lives inside the `subscription` jsonb blob.
 
 RLS leans on a small set of `SECURITY DEFINER` helper functions (`is_coach()`, `is_athlete()`, `is_admin()`, `is_super_admin()`, `is_conversation_participant(conv_id)`, `current_team_id()`, `current_team_status()`) so policies can check role/team/membership without recursing into RLS on `profiles`/`teams`/`conversation_participants` themselves. Reuse these rather than inlining the same subqueries.
 
@@ -201,6 +217,34 @@ Three different actions that look similar but do genuinely different things — 
 - **Email** — `supabase.auth.updateUser({ email })` directly, no `profiles`/SQL involvement at all. Does not take effect immediately — Supabase's own "secure email change" flow requires confirmation via email first. This depends on the Supabase project having a working mailer (custom SMTP); the shared built-in dev mailer is rate-limited and not reliable for this.
 - **Password** — `supabase.auth.updateUser({ password })`. Supabase's API has no "current password" concept (an active session is already proof of auth), so the product's explicit re-entry requirement is implemented by calling `supabase.auth.signInWithPassword()` with the claimed current password first — a wrong one fails clearly before anything changes.
 
+### Messaging
+
+`ConversationList` (`src/components/ConversationList.jsx`) is the single component behind both the desktop sidebar and the mobile single-pane list — there's no separate desktop-only component (`MessagesSidebar.jsx` was retired). Desktop renders it as a fixed 300px panel beside `ConversationView`; below the mobile breakpoint (640px) it becomes a full-width list, with `MessagesPage` toggling between the list and the open conversation via a `.messages-page-detail` class rather than separate routes. Its CSS classes still say `.mobile-inbox`/`.mobile-convo-*` — a naming leftover from when this really was mobile-only; it applies at every screen size now.
+
+Each row shows a circular avatar (initials for DMs; a fixed two-person icon for groups, not initials — a numeral-prefixed group name like "800m" has nothing but a leading digit to build initials from, and since two different distance groups would otherwise collide on the same bare digit, an icon sidesteps the whole problem; the team channel gets a speakerphone icon on the team's own customizable accent color, never gray, so it always reads as the primary channel), a single-line preview (sender-prefixed for group/team, `"You: "` if the viewer sent it last), a relative timestamp, and an unread dot.
+
+**Sort order** (`sortByRecency` in `MessagesPage.jsx`): team channel always first, then most-recent-activity first — not alphabetical, not grouped by type. A conversation with no messages yet falls back to its own `created_at`, so an empty group doesn't jump around relative to other empty ones as the list re-sorts.
+
+**Last-message previews** (`fetchLastMessagesForConversations` in `src/lib/messages.js`): PostgREST has no "latest row per group" query, so this pulls the most recent 300 messages across the user's conversations (ordered newest-first) and keeps only the first (most recent) one seen per conversation. Fine at this app's scale; would need a real per-conversation query or a SQL view if a team ever had enough simultaneous conversation volume for 300 messages to stop covering everyone's latest.
+
+**Unread tracking** (`src/utils/conversationReadState.js`) is client-side only — a localStorage "last seen" timestamp per conversation, not a schema column. A real read-receipt column would need a migration a coach would have to run by hand, same as every other schema change in this project; the localStorage version correctly shows/clears the dot but won't sync across a user's devices (read on the laptop, still unread on the phone). A conversation with no stored last-seen yet is treated as caught-up rather than unread, so shipping this feature didn't retroactively light up every existing conversation on first load.
+
+**Mobile single-pane behavior**: `MessagesPage` auto-navigates a bare `/messages` to the team channel when one exists — a nice shortcut on desktop, where the list stays visible alongside the conversation regardless. On the mobile single-pane layout this would trap the user in the team channel permanently (tapping "Back" out of any conversation just re-triggers the same auto-redirect, since there's always a team channel to jump to) — worked around two ways: a `?view=list` query param the redirect explicitly checks for (so the Back link can request the list without being redirected straight back), and an `isMobileMessagesLayout()` (`matchMedia('(max-width: 640px)')`) check that skips the auto-redirect outright on mobile, so tapping "Messages" in the nav lands on the list there too instead of jumping into a conversation. Desktop's shortcut behavior is unchanged by either.
+
+### Push notifications
+
+Opt-in only, off by default — `AccountSettingsPage` has a toggle that must be explicitly turned on; nothing is ever requested or sent without that.
+
+**Client side** (`src/lib/pushNotifications.js`): turning the toggle on calls `Notification.requestPermission()` from that click (never on page load — browsers require a user gesture, and a site only gets to burn that prompt once), then `PushManager.subscribe()` using `VITE_VAPID_PUBLIC_KEY`, then upserts the subscription into `push_subscriptions` keyed on `(user_id, endpoint)` — opting in from a second device adds a row rather than replacing the first, since each device's subscription has its own `endpoint`. Turning it off unsubscribes just that browser and deletes only its own row. `endpoint` is stored as its own plain column (duplicating a value already inside the `subscription` jsonb blob) because PostgREST's `upsert(onConflict:)` needs a real unique constraint on plain columns to target — it can't reliably resolve one defined on a jsonb expression index. A denied/blocked browser permission disables the toggle and shows an explanatory message instead of silently failing. iOS Safari has its own hard requirement on top of this, unrelated to anything in this codebase: Web Push only works for a PWA installed to the Home Screen, never a regular Safari tab, even though the `Notification`/`PushManager` APIs are technically present there too.
+
+`push_subscriptions` (`supabase/push_notifications_schema.sql`) is deliberately **not** team-scoped like most tables in this project — it's purely user-owned, RLS restricts all client access to `auth.uid() = user_id`, and the only thing that ever reads across users is the Edge Function via the service role key (which bypasses RLS entirely). No `team_id`, no `BEFORE INSERT` trigger deriving one.
+
+**Service worker** (`public/service-worker.js`) has `push` (shows the notification, using the app icon) and `notificationclick` (focuses an already-open tab on the target page, navigates one if none matches, or opens a new tab as a last resort) handlers.
+
+**Sending** (`supabase/functions/send-push-notification/index.ts`, a Supabase Edge Function — the only one in this project) is triggered by a Database Webhook on every new `messages` row: looks up the conversation's other participants, finds their opted-in subscriptions, and sends each one a Web Push notification (sender's name + a truncated message preview) via `npm:web-push`, using VAPID keys held as Edge Function secrets (`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`, set with `supabase secrets set` — never committed to this repo, unlike `VITE_VAPID_PUBLIC_KEY` which is safe to commit since it's meant to be public). Deployed with `--no-verify-jwt`, since the trigger is a database-level call with no end-user JWT to attach — see the function's own header comment for the trade-off reasoning (the endpoint ends up unauthenticated, judged acceptable here since the worst an outside caller could do is trigger push sends using data they supply, not read/write anything else).
+
+**The webhook itself is set up by hand in the Dashboard, not in SQL.** `supabase_functions.http_request` (the mechanism a raw-SQL trigger would use to call an Edge Function) depends on the `supabase_functions` schema, which isn't pre-provisioned on every project — it's only created the first time a project sets up a Database Webhook, and the Dashboard's own webhook-creation flow provisions it automatically as a side effect. Confirmed the hard way: a committed SQL trigger attempting to call it failed with `schema "supabase_functions" does not exist` on this project, which had never used Database Webhooks before. `push_notifications_schema.sql` only creates the table + RLS for this reason; the webhook is: Dashboard → Database → Webhooks → table `messages`, event Insert, type "Supabase Edge Functions", function `send-push-notification`.
+
 ### Team color theming
 
 `team_settings` holds one row **per team** (not a global singleton), RLS-scoped so each team only ever sees/edits its own row, editable by coaches (admin views, doesn't edit). `ThemeContext` (`src/context/ThemeContext.jsx`) fetches it on login and applies the palette as CSS custom properties directly on `document.documentElement` (`--accent`, `--accent-dark`, `--accent-bg`, `--accent-border`, `--accent-shadow`, `--accent-rgb`) — it does not use React state/props for coloring. All theme-aware CSS in `src/index.css` should reference these variables rather than hardcoding color values, so it stays responsive to a coach's palette choice.
@@ -219,6 +263,22 @@ Editing an event happens **in place**: `EventsPage` owns all the form/editing st
 
 `LoginPage`/`SignUpPage` render on a fixed near-black backdrop (`auth-page-animated`/`auth-card-dark` modifier classes, layered on top of the base `.auth-page`/`.auth-card` classes that `CreateTeamPage`/`PendingPage`/`RemovedPage` still use plain) with a looping runner animation (`RunnerSprite.jsx`) beside the form. The sprite cycles a sprite-sheet PNG (`public/runner-sprite.png`) via `background-position`, not `<img>` swapping. The frame count/positions/crop-inset constants at the top of `RunnerSprite.jsx` are measured directly from that specific source image (irregular pose spacing, a couple of frames with a stray fragment of the adjacent pose baked into their own cell) — they are not generic and must be re-derived by inspecting the new sheet if `runner-sprite.png` is ever replaced, not guessed by eye.
 
+### Mobile & PWA
+
+**Nav** (`NavBar.jsx`): the full row of links shows above ~860px; below it, a hamburger button reveals a slide-out drawer (`.navbar-drawer`) with the same links plus account/logout, closed automatically on navigation (`useLocation` inside a `useEffect`) with body scroll locked while open. `SuperAdminHeader` has no drawer at all — a super admin has no nav links, just identity + logout — so it carries a `.navbar-simple` class the mobile CSS explicitly excludes from the "hide `.navbar-user` below the breakpoint" rule; without that exclusion its logout button disappears on mobile with nothing to replace it (this was a real, shipped bug for a while — worth checking for the same gap any time a `.navbar`-using header doesn't have NavBar's drawer).
+
+**PWA install**: `manifest.json` + `service-worker.js` + `index.html`'s `apple-mobile-web-app-*` meta tags (iOS Safari ignores `manifest.json` for install/standalone behavior and needs its own tags) make the app installable. Icons are generated from `public/infinity.png`, a wide/non-square source image — every derived icon is built from a square canvas centered on the shape's own bounding box (computed from its non-black pixels), not a plain center-crop, so nothing gets clipped. Favicon/logo variants (`favicon.svg`, `favicon-*.png`, `logo.png`) are transparent — the source is a neon glow rendered on solid black, "un-screened" into real alpha (same math as the login page's `mix-blend-mode: screen` on the runner sprite, just baked into pixels here since favicons/OS icons can't have CSS applied to them); the PWA install icons (`icon-192.png`/`icon-512.png`/`apple-touch-icon.png`) stay opaque, per Apple's own guidance against transparent home-screen icons.
+
+**Service worker caching**: page navigations and everything else in `public/` (favicon, logo, manifest, icons) are network-first with a cache fallback for offline use — those keep a stable filename even when their contents change, so cache-first would serve a stale copy forever after any rebrand. This was also a real shipped bug once: the original fetch handler cached "everything same-origin," on the assumption it was all Vite's hashed build output, and a browser that had cached the old logo kept serving it regardless of later deploys. Only `/assets/*` (Vite's actual build output, content-hashed per file) is cache-first now — that's what makes repeat visits load instantly without ever risking staleness. `offline.html` is precached and served as a last-resort fallback for a failed navigation with nothing else cached yet.
+
 ### Design tokens
 
 `src/index.css` defines a spacing scale (`--space-1`…`--space-10`, 4px-based), radius/shadow/transition tokens, and a small type scale in `:root`, plus light/dark overrides via `prefers-color-scheme` (no manual theme toggle). Card-like surfaces across the app share one grouped selector for consistent radius/shadow/hover treatment rather than each component defining its own. Shared UI primitives — `Skeleton`/`SkeletonList` (loading placeholders), `StatRow` (dashboard stat tiles), and the toast system (`ToastContext` + `useToast()`, mounted once in `main.jsx`) — should be reused for new pages rather than re-implemented.
+
+### Deployment: Cloudflare Workers
+
+Live at a `*.workers.dev` URL, GitHub-connected via Cloudflare's Workers Builds — every push to `main` triggers an automatic build (`npm run build`) and deploy (`npx wrangler deploy`), no manual deploy step. `wrangler.jsonc` configures this as a static-assets Worker (`assets.directory: "./dist"`, `not_found_handling: "single-page-application"` so client-side routes don't 404 on direct navigation), not a Worker with its own server-side code.
+
+Build-time environment variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_VAPID_PUBLIC_KEY`, `NODE_VERSION=20`) live in the Cloudflare dashboard under the Worker's **Settings → Builds → Variables and Secrets** — note this is a *different* "Variables and Secrets" screen than the one under the Worker's general Settings, which is for runtime bindings and doesn't apply to an assets-only Worker at all (the dashboard refuses to let you add anything there). A missing or wrong-scoped variable here doesn't fail the build — it just silently produces a working-looking site with that one feature broken (e.g. the push-notifications toggle throwing "not configured" with no other symptom). `wrangler deploy` logging **"No updated asset files to upload"** instead of listing new files is a strong tell that the build output didn't actually change — i.e. whatever variable you just added still isn't reaching the build, and it's worth re-checking it landed in the right "Variables and Secrets" screen before assuming the rebuild itself is broken.
+
+Node version pinning matters here for the same reason `nvm use 20` is needed locally: the repo's default `node` is too old for this Vite version, and Cloudflare's build environment needs its own `NODE_VERSION` variable to pick a newer one.
