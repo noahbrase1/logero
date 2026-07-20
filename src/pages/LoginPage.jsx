@@ -26,7 +26,7 @@ export default function LoginPage() {
   return (
     <div className="auth-page auth-page-animated">
       <div className="auth-hero">
-        <RunnerSprite intervalMs={360} />
+        <RunnerSprite intervalMs={3600} />
       </div>
       <form className="auth-card auth-card-dark" onSubmit={handleSubmit}>
         <h1>Log in</h1>
