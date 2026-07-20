@@ -1,5 +1,16 @@
 import { supabase } from './supabaseClient'
 
+export const MESSAGE_IMAGES_BUCKET = 'message-images'
+export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
+export const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+
+const EXTENSION_BY_MIME_TYPE = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+}
+
 // Shared by fetchConversations() and fetchAllTeamConversations(): given a
 // flat conversation list and every participant row for those conversations,
 // builds the shape both the sidebar and ConversationView expect.
@@ -102,7 +113,7 @@ export async function fetchLastMessagesForConversations(conversationIds) {
 
   const { data, error } = await supabase
     .from('messages')
-    .select('conversation_id, content, sender_id, created_at, profiles(name)')
+    .select('conversation_id, content, sender_id, created_at, image_url, profiles(name)')
     .in('conversation_id', conversationIds)
     .order('created_at', { ascending: false })
     .limit(300)
@@ -129,15 +140,64 @@ export async function fetchMessages(conversationId) {
   return data
 }
 
-export async function sendMessage(conversationId, senderId, content) {
+export async function sendMessage(conversationId, senderId, content, imagePath = null) {
   const { data, error } = await supabase
     .from('messages')
-    .insert({ conversation_id: conversationId, sender_id: senderId, content })
+    .insert({ conversation_id: conversationId, sender_id: senderId, content, image_url: imagePath })
     .select('*, profiles(name)')
     .single()
 
   if (error) throw error
   return data
+}
+
+// Validates client-side (matching the bucket's own file_size_limit /
+// allowed_mime_types, enforced again server-side as defense in depth), then
+// uploads to {team_id}/{conversation_id}/{random}.{ext} — a path shape the
+// storage RLS policies parse to check team + conversation-membership
+// isolation. Returns the stored path (not a URL — the bucket is private, so
+// a signed URL is minted fresh at render time via resolveMessageImageUrls()).
+export async function uploadMessageImage(teamId, conversationId, file) {
+  if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.type)) {
+    throw new Error('That file type isn\'t supported. Please choose a JPEG, PNG, WebP, or GIF image.')
+  }
+  if (file.size > MAX_IMAGE_SIZE_BYTES) {
+    throw new Error('That image is too large — please choose one under 10MB.')
+  }
+
+  const ext = EXTENSION_BY_MIME_TYPE[file.type] || 'jpg'
+  const path = `${teamId}/${conversationId}/${crypto.randomUUID()}.${ext}`
+
+  const { error } = await supabase.storage
+    .from(MESSAGE_IMAGES_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false })
+
+  if (error) throw error
+  return path
+}
+
+// Batched signed-URL resolution for however many distinct message image
+// paths need displaying at once (same batching reasoning as
+// fetchLastMessagesForConversations) — returns { [path]: signedUrl },
+// skipping any path the Storage API couldn't sign rather than failing the
+// whole batch.
+export async function resolveMessageImageUrls(paths) {
+  const uniquePaths = [...new Set(paths)]
+  if (uniquePaths.length === 0) return {}
+
+  const { data, error } = await supabase.storage
+    .from(MESSAGE_IMAGES_BUCKET)
+    .createSignedUrls(uniquePaths, 3600)
+
+  if (error) throw error
+
+  const urlsByPath = {}
+  for (const entry of data) {
+    if (entry.signedUrl && !entry.error) {
+      urlsByPath[entry.path] = entry.signedUrl
+    }
+  }
+  return urlsByPath
 }
 
 export async function startDirectConversation(otherUserId) {

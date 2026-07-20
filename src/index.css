@@ -1440,15 +1440,130 @@ a.conversation-back-link {
   word-break: break-word;
 }
 
+.message-image {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  width: auto;
+  border-radius: 10px;
+  object-fit: cover;
+  cursor: pointer;
+  margin-bottom: 0.4rem;
+}
+
+.message-image-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 160px;
+  height: 120px;
+  background: var(--accent-bg);
+}
+
 .message-input-row {
   display: flex;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.6rem;
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--border);
 }
 
-.message-input-row input {
+.message-input-controls {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.message-input-controls input {
   flex: 1;
+}
+
+.message-attach-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--radius-pill);
+  background: var(--accent-bg);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.message-attach-button:hover:not(:disabled) {
+  background: var(--accent);
+  color: white;
+}
+
+.message-image-preview {
+  position: relative;
+  display: inline-flex;
+  width: fit-content;
+}
+
+.message-image-preview img {
+  height: 72px;
+  width: auto;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+}
+
+.message-image-preview-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--danger);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.image-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(8, 6, 13, 0.85);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-lightbox-image {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 8px;
+  object-fit: contain;
+  cursor: default;
+}
+
+.image-lightbox-close {
+  position: fixed;
+  top: var(--space-4);
+  right: var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  box-shadow: none;
+}
+
+.image-lightbox-close:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 /* --- Team theme settings --- */

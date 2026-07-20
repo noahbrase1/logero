@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
 
     const notificationPayload = JSON.stringify({
       title: sender?.name || 'New message',
-      body: truncate(message.content),
+      body: message.content ? truncate(message.content) : message.image_url ? '📷 Photo' : 'New message',
       url: `/messages/${message.conversation_id}`,
     })
 

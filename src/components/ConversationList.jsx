@@ -16,10 +16,11 @@ function conversationName(c) {
 function conversationPreview(c, viewerId) {
   const lm = c.lastMessage
   if (!lm) return 'No messages yet'
+  const text = lm.content || (lm.image_url ? '📷 Photo' : '')
   const isMine = lm.sender_id === viewerId
-  if (c.type === 'direct') return isMine ? `You: ${lm.content}` : lm.content
+  if (c.type === 'direct') return isMine ? `You: ${text}` : text
   const senderName = isMine ? 'You' : lm.profiles?.name || 'Someone'
-  return `${senderName}: ${lm.content}`
+  return `${senderName}: ${text}`
 }
 
 // iOS Messages-style conversation list — the sidebar's entire visual
