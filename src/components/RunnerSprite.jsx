@@ -34,18 +34,20 @@ const CROP_ASPECT = CROP_H / CROP_W
 // LoginPage/SignUpPage) — cycles the 4-frame sprite sheet via
 // background-position rather than swapping <img> src, so there's no
 // flicker/reflow between frames. Frames advance in the order they appear
-// left-to-right in the sheet (0,1,2,3) and loop back to 0.
-export default function RunnerSprite({ width = 300, intervalMs = 144 }) {
+// left-to-right in the sheet (0,1,2,3) and loop back to 0. Pass
+// animate={false} to hold on frame 0 (the first pose) instead of cycling.
+export default function RunnerSprite({ width = 300, intervalMs = 144, animate = true }) {
   const [frame, setFrame] = useState(0)
   const height = Math.round(width * CROP_ASPECT)
   const scale = width / CROP_W
 
   useEffect(() => {
+    if (!animate) return
     const id = setInterval(() => {
       setFrame((f) => (f + 1) % FRAME_COUNT)
     }, intervalMs)
     return () => clearInterval(id)
-  }, [intervalMs])
+  }, [intervalMs, animate])
 
   const center = FRAME_CENTERS[frame]
   const sampleX = center.x - CROP_W / 2
