@@ -50,7 +50,7 @@ export default function AthleteAssignmentsPage() {
                     <span className={`type-badge type-${a.type}`}>{workoutTypeLabel(a.type)}</span>
                     <span className="workout-date">{formatDate(a.date)}</span>
                   </div>
-                  <Link to={`/?assignmentId=${a.id}`}>
+                  <Link to={`/log?assignmentId=${a.id}`}>
                     <button type="button">Log this workout</button>
                   </Link>
                 </div>

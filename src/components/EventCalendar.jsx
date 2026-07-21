@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { formatDateHeading, formatTimeRange, workoutTypeLabel } from '../utils/format'
 import { toDateStr } from '../utils/week'
 import EventCard from './EventCard'
@@ -51,7 +51,11 @@ function buildMonthGrid(year, month) {
 // is a no-op for them). `assignments` is the viewing athlete's own
 // assigned_workouts rows (with nested segment/target children);
 // `workoutByAssignment` maps assignment id -> their matching logged workout
-// (if any), for TargetVsActual.
+// (if any), for TargetVsActual. `canLog` (athlete-only) lets every day be
+// selected, not just ones with events/assignments, and switches on the
+// day-panel's unified log/edit action; `workoutsByDate` (keyed by "YYYY-MM-DD")
+// is used to route that action to editing an existing log instead of
+// creating a new one.
 export default function EventCalendar({
   events,
   isCoach,
@@ -60,7 +64,10 @@ export default function EventCalendar({
   editing,
   assignments = [],
   workoutByAssignment = {},
+  canLog = false,
+  workoutsByDate = {},
 }) {
+  const navigate = useNavigate()
   const today = new Date()
   const [viewDate, setViewDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))
   const [selectedDate, setSelectedDate] = useState(null)
@@ -119,12 +126,23 @@ export default function EventCalendar({
   }
 
   function selectDate(dateStr, hasEvents, hasAssignment) {
-    if (!hasEvents && !hasAssignment) return
+    if (!canLog && !hasEvents && !hasAssignment) return
     setSelectedDate((prev) => (prev === dateStr ? null : dateStr))
   }
 
   const selectedEvents = selectedDate ? eventsByDate.get(selectedDate) || [] : []
   const selectedAssignments = selectedDate ? assignmentsByDate.get(selectedDate) || [] : []
+  const selectedWorkout = selectedDate ? workoutsByDate[selectedDate] : null
+
+  function handleLogAction() {
+    if (selectedWorkout) {
+      navigate(`/edit/${selectedWorkout.id}`)
+    } else if (selectedAssignments.length > 0) {
+      navigate(`/log?assignmentId=${selectedAssignments[0].id}&date=${selectedDate}`)
+    } else {
+      navigate(`/log?date=${selectedDate}`)
+    }
+  }
 
   return (
     <div className="event-calendar">
@@ -201,7 +219,7 @@ export default function EventCalendar({
                 .filter(Boolean)
                 .join(' ')}
               onClick={() => selectDate(dateStr, hasEvents, hasAssignment)}
-              disabled={!hasEvents && !hasAssignment}
+              disabled={!canLog && !hasEvents && !hasAssignment}
             >
               <span className="calendar-cell-date">{date.getDate()}</span>
               {(hasEvents || hasAssignment) && (
@@ -234,7 +252,7 @@ export default function EventCalendar({
         })}
       </div>
 
-      {selectedDate && (selectedEvents.length > 0 || selectedAssignments.length > 0) && (
+      {selectedDate && (selectedEvents.length > 0 || selectedAssignments.length > 0 || canLog) && (
         <div className="calendar-day-panel">
           <h3>{formatDateHeading(selectedDate)}</h3>
           {selectedEvents.length > 0 && (
@@ -252,19 +270,18 @@ export default function EventCalendar({
                     <div>
                       <span className={`type-badge type-${a.type}`}>{workoutTypeLabel(a.type)}</span>
                     </div>
-                    {a.status === 'completed' ? (
-                      <span className="status-badge status-completed">completed</span>
-                    ) : (
-                      <Link to={`/?assignmentId=${a.id}`}>
-                        <button type="button">Log this workout</button>
-                      </Link>
-                    )}
+                    {a.status === 'completed' && <span className="status-badge status-completed">completed</span>}
                   </div>
                   {a.notes && <p className="workout-notes">{a.notes}</p>}
                   <TargetVsActual assignment={a} workout={workoutByAssignment[a.id]} />
                 </div>
               ))}
             </div>
+          )}
+          {canLog && (
+            <button type="button" className="calendar-log-action" onClick={handleLogAction}>
+              {selectedWorkout ? 'Edit workout' : selectedAssignments.length > 0 ? 'Log this workout' : 'Log a workout'}
+            </button>
           )}
         </div>
       )}

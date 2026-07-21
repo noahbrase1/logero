@@ -115,7 +115,8 @@ export default function App() {
           </Routes>
         ) : (
           <Routes>
-            <Route path="/" element={<LogWorkoutPage />} />
+            <Route path="/" element={<EventsPage />} />
+            <Route path="/log" element={<LogWorkoutPage />} />
             <Route path="/edit/:workoutId" element={<LogWorkoutPage />} />
             <Route path="/history" element={<WorkoutHistoryPage />} />
             <Route path="/messages" element={<MessagesPage />} />

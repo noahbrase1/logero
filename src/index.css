@@ -1971,6 +1971,10 @@ button.link-button.danger {
   color: var(--text-muted);
 }
 
+.calendar-log-action {
+  margin-top: 0.85rem;
+}
+
 .calendar-day-panel {
   margin-top: 1.25rem;
   padding-top: 1rem;

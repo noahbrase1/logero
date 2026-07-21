@@ -20,9 +20,10 @@ export default function EventsPage() {
   const [events, setEvents] = useState([])
   const [assignments, setAssignments] = useState([])
   const [workoutByAssignment, setWorkoutByAssignment] = useState({})
+  const [workoutsByDate, setWorkoutsByDate] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [view, setView] = useState('list')
+  const [view, setView] = useState('calendar')
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -45,10 +46,13 @@ export default function EventsPage() {
         if (isAthlete) {
           setAssignments(assignmentData)
           const map = {}
+          const byDate = {}
           workouts.forEach((w) => {
             if (w.assignment_id) map[w.assignment_id] = w
+            byDate[w.date] = w
           })
           setWorkoutByAssignment(map)
+          setWorkoutsByDate(byDate)
         }
       })
       .catch((err) => setError(err.message))
@@ -142,7 +146,7 @@ export default function EventsPage() {
   return (
     <div className="page">
       <div className="page-header-row">
-        <h1>Events</h1>
+        <h1>Calendar</h1>
         {isCoach && !formOpen && !editingId && (
           <button type="button" onClick={startCreate}>
             + New event
@@ -168,15 +172,15 @@ export default function EventsPage() {
       {!loading && (
         <>
           <div className="type-toggle">
-            <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
-              Events
-            </button>
             <button
               type="button"
               className={view === 'calendar' ? 'active' : ''}
               onClick={() => setView('calendar')}
             >
               Calendar
+            </button>
+            <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
+              Events
             </button>
           </div>
 
@@ -189,6 +193,8 @@ export default function EventsPage() {
               editing={editingState}
               assignments={assignments}
               workoutByAssignment={workoutByAssignment}
+              canLog={isAthlete}
+              workoutsByDate={workoutsByDate}
             />
           ) : (
             <>

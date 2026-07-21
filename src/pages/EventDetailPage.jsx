@@ -132,7 +132,7 @@ export default function EventDetailPage() {
   return (
     <div className="page">
       <Link to="/events" className="link-button">
-        ← Back to events
+        ← Back to calendar
       </Link>
 
       <div className="page-header-row">

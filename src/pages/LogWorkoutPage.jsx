@@ -100,12 +100,22 @@ export default function LogWorkoutPage() {
       .catch((err) => setError(err.message))
   }, [user.id, type, isEditing])
 
-  // If we arrived from the assignments to-do list (`?assignmentId=...`), load
-  // that specific assignment, switch to its workout type, and prefill targets.
+  // If we arrived from the assignments to-do list or the calendar
+  // (`?assignmentId=...`), load that specific assignment, switch to its
+  // workout type, and prefill targets. `?date=...` (from the calendar —
+  // tapping a date pre-fills the log for that day, with or without an
+  // assignment) is applied independently of assignmentId, since a plain
+  // calendar tap on an empty day only ever sends `date`.
   useEffect(() => {
     if (isEditing) return
     const paramId = searchParams.get('assignmentId')
-    if (!paramId) return
+    const paramDate = searchParams.get('date')
+    if (paramDate) setDate(paramDate)
+
+    if (!paramId) {
+      if (paramDate) setSearchParams({}, { replace: true })
+      return
+    }
     fetchAssignmentById(paramId)
       .then((assignment) => {
         setType(assignment.type)

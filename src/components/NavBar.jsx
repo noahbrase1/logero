@@ -34,7 +34,7 @@ export default function NavBar() {
       <NavLink to="/roster">Roster</NavLink>
       <NavLink to="/pending">Pending</NavLink>
       <NavLink to="/messages">Messages</NavLink>
-      <NavLink to="/events">Events</NavLink>
+      <NavLink to="/events">Calendar</NavLink>
       <NavLink to="/assignments">Assignments</NavLink>
       <NavLink to="/settings">Team Theme</NavLink>
     </>
@@ -45,18 +45,17 @@ export default function NavBar() {
       </NavLink>
       <NavLink to="/roster">Roster</NavLink>
       <NavLink to="/messages">Messages</NavLink>
-      <NavLink to="/events">Events</NavLink>
+      <NavLink to="/events">Calendar</NavLink>
       <NavLink to="/assignments">Assignments</NavLink>
       <NavLink to="/settings">Team Theme</NavLink>
     </>
   ) : (
     <>
       <NavLink to="/" end>
-        Log Workout
+        Calendar
       </NavLink>
       <NavLink to="/history">History</NavLink>
       <NavLink to="/messages">Messages</NavLink>
-      <NavLink to="/events">Events</NavLink>
       <NavLink to="/assignments">Assignments</NavLink>
     </>
   )

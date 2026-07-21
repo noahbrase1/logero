@@ -16,7 +16,7 @@ export default function CoachAssignmentsPage() {
   const [assignments, setAssignments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [view, setView] = useState('list')
+  const [view, setView] = useState(canCreate ? 'grid' : 'list')
 
   const [selectedAthleteIds, setSelectedAthleteIds] = useState(new Set())
   const [date, setDate] = useState(() => toDateStr(new Date()))
@@ -91,14 +91,14 @@ export default function CoachAssignmentsPage() {
       </div>
 
       <div className="type-toggle">
-        <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
-          List
-        </button>
         {canCreate && (
           <button type="button" className={view === 'grid' ? 'active' : ''} onClick={() => setView('grid')}>
             Grid
           </button>
         )}
+        <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
+          List
+        </button>
       </div>
 
       {view === 'grid' && canCreate ? (
