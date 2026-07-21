@@ -1,5 +1,5 @@
 import TimeTextInput from './TimeTextInput'
-import { calculatePace, distanceToMeters, hmsToSeconds, metersToMiles } from '../utils/format'
+import { formatTargetPace, hmsToSeconds } from '../utils/format'
 
 export const emptyAssignedSegment = () => ({
   key: crypto.randomUUID(),
@@ -39,9 +39,8 @@ export default function AssignedSegmentsEditor({ segments, onChange }) {
       <legend>Target segments</legend>
       <div className="segments-editor">
         {segments.map((seg, i) => {
-          const distanceMiles = metersToMiles(distanceToMeters(seg.distanceValue, seg.distanceUnit))
           const targetSeconds = hmsToSeconds(seg.targetTime)
-          const targetPace = targetSeconds > 0 ? calculatePace(distanceMiles, targetSeconds) : null
+          const targetPace = formatTargetPace(seg.distanceValue, seg.distanceUnit, Number(seg.reps) || 1, targetSeconds)
 
           return (
             <div className="segment-editor-card" key={seg.key}>

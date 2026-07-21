@@ -1,7 +1,6 @@
 import {
-  calculatePace,
+  formatTargetPace,
   hmsToSeconds,
-  metersToMiles,
   secondsToClock,
   summarizeBikeReps,
   summarizeReps,
@@ -29,7 +28,7 @@ export default function TargetVsActual({ assignment, workout }) {
             minutes: seg.target_time_minutes,
             seconds: seg.target_time_seconds,
           })
-          const targetPace = targetSeconds > 0 ? calculatePace(metersToMiles(seg.distance_meters), targetSeconds) : null
+          const targetPace = formatTargetPace(seg.distance_value, seg.distance_unit, seg.reps, targetSeconds)
           const actualSegment = actualSegments[i]
           const actualSummary = actualSegment
             ? summarizeReps(actualSegment.distance_meters, actualSegment.running_segment_reps)
@@ -40,7 +39,7 @@ export default function TargetVsActual({ assignment, workout }) {
               <div className="target-actual-segment-title">{title}</div>
               <div className="target-actual-row">
                 <span className="ta-label">Target</span>
-                <span>{targetPace ? `${targetPace}${seg.reps > 1 ? ' per rep' : ''}` : '—'}</span>
+                <span>{targetPace || '—'}</span>
               </div>
               <div className="target-actual-row">
                 <span className="ta-label">Actual</span>

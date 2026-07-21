@@ -3089,6 +3089,10 @@ button.link-button.danger {
   color: white;
 }
 
+.cell-modal-delete {
+  margin-top: 1rem;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --text: #d8d5de;

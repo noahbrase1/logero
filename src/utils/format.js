@@ -19,6 +19,21 @@ export function calculatePace(distance, durationSeconds) {
   return `${secondsToClock(paceSeconds)} /mi`
 }
 
+// Target pace/time for a running segment, shown to both the coach (while
+// assigning) and the athlete (in TargetVsActual). A single continuous
+// distance (reps <= 1, e.g. a 5-mile run) converts to a per-mile pace like
+// "6:24 /mi" — but a repeated/interval segment (reps > 1, e.g. 4x800m)
+// shows the raw per-rep target time against its own distance instead, e.g.
+// "2:22/800m" — converting an interval's short per-rep distance into a
+// full-mile pace produces a misleadingly large, meaningless number.
+export function formatTargetPace(distanceValue, distanceUnit, reps, targetSeconds) {
+  if (!targetSeconds || targetSeconds <= 0) return null
+  if (reps > 1) {
+    return `${secondsToClock(targetSeconds)}/${distanceValue}${unitAbbrev(distanceUnit)}`
+  }
+  return calculatePace(metersToMiles(distanceToMeters(distanceValue, distanceUnit)), targetSeconds)
+}
+
 export function formatDate(dateStr) {
   if (!dateStr) return ''
   const [year, month, day] = dateStr.split('-').map(Number)

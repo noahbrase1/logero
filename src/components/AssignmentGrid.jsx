@@ -63,6 +63,7 @@ export default function AssignmentGrid({ athletes, coachId }) {
 
   const [modalCell, setModalCell] = useState(null) // { athleteId, dateStr, existing }
   const [modalPendingPayload, setModalPendingPayload] = useState(null)
+  const [modalDeleteStep, setModalDeleteStep] = useState(null) // null | 'confirm' | 'confirm-unlink'
   const [modalSaving, setModalSaving] = useState(false)
   const [modalError, setModalError] = useState('')
 
@@ -331,6 +332,7 @@ export default function AssignmentGrid({ athletes, coachId }) {
   function closeModal() {
     setModalCell(null)
     setModalPendingPayload(null)
+    setModalDeleteStep(null)
     setModalError('')
   }
 
@@ -349,6 +351,25 @@ export default function AssignmentGrid({ athletes, coachId }) {
       if (modalCell.existing) await deleteAssignment(modalCell.existing.id)
       await createAssignment({ coachId, athleteId: modalCell.athleteId, date: modalCell.dateStr, ...payload })
       showToast(modalCell.existing ? 'Assignment updated' : 'Assignment created')
+      closeModal()
+      loadWeek()
+    } catch (err) {
+      setModalError(err.message)
+    } finally {
+      setModalSaving(false)
+    }
+  }
+
+  function handleDeleteClick() {
+    setModalDeleteStep(modalCell.existing?.status === 'completed' ? 'confirm-unlink' : 'confirm')
+  }
+
+  async function confirmModalDelete() {
+    setModalSaving(true)
+    setModalError('')
+    try {
+      await deleteAssignment(modalCell.existing.id)
+      showToast('Assignment deleted')
       closeModal()
       loadWeek()
     } catch (err) {
@@ -483,7 +504,21 @@ export default function AssignmentGrid({ athletes, coachId }) {
           <h3 id="cell-modal-heading">
             {modalAthleteName} — {formatDate(modalCell.dateStr)}
           </h3>
-          {modalPendingPayload ? (
+          {modalDeleteStep ? (
+            <div className="grid-paste-confirm">
+              <p className="form-error">
+                {modalDeleteStep === 'confirm-unlink'
+                  ? `${modalAthleteName} already logged this workout. Deleting will unlink their log from this assignment — their log itself is kept, but the target-vs-actual comparison and completed status will be lost. This can't be undone.`
+                  : 'Delete this assignment? This cannot be undone.'}
+              </p>
+              <button type="button" className="danger-solid" onClick={confirmModalDelete} disabled={modalSaving}>
+                {modalSaving ? 'Deleting…' : 'Yes, delete'}
+              </button>
+              <button type="button" className="link-button" onClick={() => setModalDeleteStep(null)} disabled={modalSaving}>
+                Cancel
+              </button>
+            </div>
+          ) : modalPendingPayload ? (
             <div className="grid-paste-confirm">
               <p className="form-error">
                 {modalAthleteName} already logged this workout. Editing will unlink their log from this assignment —
@@ -503,14 +538,21 @@ export default function AssignmentGrid({ athletes, coachId }) {
               </button>
             </div>
           ) : (
-            <AssignmentForm
-              initialPayload={modalCell.existing ? assignmentToFormPayload(modalCell.existing) : undefined}
-              onSubmit={handleModalSubmit}
-              onCancel={closeModal}
-              submitLabel={modalCell.existing ? 'Save changes' : 'Create assignment'}
-              saving={modalSaving}
-              error={modalError}
-            />
+            <>
+              <AssignmentForm
+                initialPayload={modalCell.existing ? assignmentToFormPayload(modalCell.existing) : undefined}
+                onSubmit={handleModalSubmit}
+                onCancel={closeModal}
+                submitLabel={modalCell.existing ? 'Save changes' : 'Create assignment'}
+                saving={modalSaving}
+                error={modalError}
+              />
+              {modalCell.existing && (
+                <button type="button" className="danger-solid cell-modal-delete" onClick={handleDeleteClick} disabled={modalSaving}>
+                  Delete assignment
+                </button>
+              )}
+            </>
           )}
         </Modal>
       )}
