@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { createEvent, deleteEvent, fetchEvents, updateEvent } from '../lib/events'
+import { fetchAssignmentsForAthlete } from '../lib/assignments'
+import { fetchWorkouts } from '../lib/workouts'
 import { SkeletonList } from '../components/Skeleton'
 import { useToast } from '../context/ToastContext'
 import EventCard from '../components/EventCard'
@@ -13,8 +15,11 @@ export default function EventsPage() {
   const { user, profile } = useAuth()
   const { showToast } = useToast()
   const isCoach = profile?.role === 'coach'
+  const isAthlete = profile?.role === 'athlete'
 
   const [events, setEvents] = useState([])
+  const [assignments, setAssignments] = useState([])
+  const [workoutByAssignment, setWorkoutByAssignment] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [view, setView] = useState('list')
@@ -24,10 +29,28 @@ export default function EventsPage() {
   const [form, setForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
 
+  // Athlete-only: their own assignments + logged workouts, so the calendar
+  // can show assigned workouts alongside team events (see EventCalendar's
+  // optional assignments/workoutByAssignment props). Verbatim copy of
+  // AthleteAssignmentsPage's own data-fetching — coach/admin skip this
+  // entirely and EventCalendar behaves exactly as before for them.
   function load() {
     setLoading(true)
-    fetchEvents()
-      .then(setEvents)
+    const requests = isAthlete
+      ? [fetchEvents(), fetchAssignmentsForAthlete(user.id), fetchWorkouts({ userId: user.id })]
+      : [fetchEvents()]
+    Promise.all(requests)
+      .then(([eventData, assignmentData, workouts]) => {
+        setEvents(eventData)
+        if (isAthlete) {
+          setAssignments(assignmentData)
+          const map = {}
+          workouts.forEach((w) => {
+            if (w.assignment_id) map[w.assignment_id] = w
+          })
+          setWorkoutByAssignment(map)
+        }
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }
@@ -164,6 +187,8 @@ export default function EventsPage() {
               onEdit={startEdit}
               onDelete={handleDelete}
               editing={editingState}
+              assignments={assignments}
+              workoutByAssignment={workoutByAssignment}
             />
           ) : (
             <>

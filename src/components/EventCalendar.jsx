@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
-import { formatDateHeading, formatTimeRange } from '../utils/format'
+import { Link } from 'react-router-dom'
+import { formatDateHeading, formatTimeRange, workoutTypeLabel } from '../utils/format'
+import { toDateStr } from '../utils/week'
 import EventCard from './EventCard'
+import TargetVsActual from './TargetVsActual'
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTH_LABELS = [
@@ -19,17 +22,6 @@ const MONTH_LABELS = [
 ]
 
 const MAX_NAMES_PER_CELL = 2
-
-// Local Y-M-D string, deliberately not toISOString() (which converts to UTC
-// and can shift the date near midnight in some timezones) — every date in
-// this grid is built from a local Date, so it has to be read back the same
-// way to stay in sync with events.date ("YYYY-MM-DD" from the date input).
-function toDateStr(d) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
 
 // Leading/trailing days from adjacent months fill the grid to a full week
 // row — `new Date(year, month, dayNum)` naturally rolls dayNum <= 0 or
@@ -53,7 +45,22 @@ function buildMonthGrid(year, month) {
 // day-detail panel, same as EventsPage's own list — clicking a date just
 // surfaces the same cards, not a separate read path (including its "View
 // lineup" link and, when editing, its inline edit form).
-export default function EventCalendar({ events, isCoach, onEdit, onDelete, editing }) {
+//
+// `assignments`/`workoutByAssignment` are optional — only EventsPage's
+// athlete branch passes them (coach/admin pass nothing, so this whole path
+// is a no-op for them). `assignments` is the viewing athlete's own
+// assigned_workouts rows (with nested segment/target children);
+// `workoutByAssignment` maps assignment id -> their matching logged workout
+// (if any), for TargetVsActual.
+export default function EventCalendar({
+  events,
+  isCoach,
+  onEdit,
+  onDelete,
+  editing,
+  assignments = [],
+  workoutByAssignment = {},
+}) {
   const today = new Date()
   const [viewDate, setViewDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))
   const [selectedDate, setSelectedDate] = useState(null)
@@ -83,6 +90,15 @@ export default function EventCalendar({ events, isCoach, onEdit, onDelete, editi
     return map
   }, [events])
 
+  const assignmentsByDate = useMemo(() => {
+    const map = new Map()
+    for (const a of assignments) {
+      if (!map.has(a.date)) map.set(a.date, [])
+      map.get(a.date).push(a)
+    }
+    return map
+  }, [assignments])
+
   const cells = useMemo(() => buildMonthGrid(year, month), [year, month])
 
   function goToMonth(delta) {
@@ -102,12 +118,13 @@ export default function EventCalendar({ events, isCoach, onEdit, onDelete, editi
     setViewDate(new Date(newYear, month, 1))
   }
 
-  function selectDate(dateStr, hasEvents) {
-    if (!hasEvents) return
+  function selectDate(dateStr, hasEvents, hasAssignment) {
+    if (!hasEvents && !hasAssignment) return
     setSelectedDate((prev) => (prev === dateStr ? null : dateStr))
   }
 
   const selectedEvents = selectedDate ? eventsByDate.get(selectedDate) || [] : []
+  const selectedAssignments = selectedDate ? assignmentsByDate.get(selectedDate) || [] : []
 
   return (
     <div className="event-calendar">
@@ -165,7 +182,9 @@ export default function EventCalendar({ events, isCoach, onEdit, onDelete, editi
           }
 
           const dayEvents = eventsByDate.get(dateStr) || []
+          const dayAssignments = assignmentsByDate.get(dateStr) || []
           const hasEvents = dayEvents.length > 0
+          const hasAssignment = dayAssignments.length > 0
           const isToday = dateStr === todayStr
           const isSelected = dateStr === selectedDate
 
@@ -181,13 +200,23 @@ export default function EventCalendar({ events, isCoach, onEdit, onDelete, editi
               ]
                 .filter(Boolean)
                 .join(' ')}
-              onClick={() => selectDate(dateStr, hasEvents)}
-              disabled={!hasEvents}
+              onClick={() => selectDate(dateStr, hasEvents, hasAssignment)}
+              disabled={!hasEvents && !hasAssignment}
             >
               <span className="calendar-cell-date">{date.getDate()}</span>
+              {(hasEvents || hasAssignment) && (
+                <span className="calendar-cell-indicators" aria-hidden="true">
+                  {hasEvents && <span className="calendar-cell-dot" />}
+                  {dayAssignments.map((a) => (
+                    <span
+                      key={a.id}
+                      className={`calendar-cell-assignment-dot type-${a.type} ${a.status === 'completed' ? 'is-complete' : 'is-pending'}`}
+                    />
+                  ))}
+                </span>
+              )}
               {hasEvents && (
                 <span className="calendar-cell-events">
-                  <span className="calendar-cell-dot" aria-hidden="true" />
                   {dayEvents.slice(0, MAX_NAMES_PER_CELL).map((e) => (
                     <span className="calendar-cell-event-name" key={e.id} title={eventTimeHint(e) || undefined}>
                       {e.name}
@@ -205,14 +234,38 @@ export default function EventCalendar({ events, isCoach, onEdit, onDelete, editi
         })}
       </div>
 
-      {selectedDate && selectedEvents.length > 0 && (
+      {selectedDate && (selectedEvents.length > 0 || selectedAssignments.length > 0) && (
         <div className="calendar-day-panel">
           <h3>{formatDateHeading(selectedDate)}</h3>
-          <div className="events-list">
-            {selectedEvents.map((e) => (
-              <EventCard key={e.id} event={e} isCoach={isCoach} onEdit={onEdit} onDelete={onDelete} editing={editing} />
-            ))}
-          </div>
+          {selectedEvents.length > 0 && (
+            <div className="events-list">
+              {selectedEvents.map((e) => (
+                <EventCard key={e.id} event={e} isCoach={isCoach} onEdit={onEdit} onDelete={onDelete} editing={editing} />
+              ))}
+            </div>
+          )}
+          {selectedAssignments.length > 0 && (
+            <div className="assignments-list">
+              {selectedAssignments.map((a) => (
+                <div key={a.id} className="assignment-card">
+                  <div className="assignment-card-header">
+                    <div>
+                      <span className={`type-badge type-${a.type}`}>{workoutTypeLabel(a.type)}</span>
+                    </div>
+                    {a.status === 'completed' ? (
+                      <span className="status-badge status-completed">completed</span>
+                    ) : (
+                      <Link to={`/?assignmentId=${a.id}`}>
+                        <button type="button">Log this workout</button>
+                      </Link>
+                    )}
+                  </div>
+                  {a.notes && <p className="workout-notes">{a.notes}</p>}
+                  <TargetVsActual assignment={a} workout={workoutByAssignment[a.id]} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

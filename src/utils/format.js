@@ -192,6 +192,48 @@ export function getInitials(name) {
   return trimmed ? trimmed[0].toUpperCase() : '?'
 }
 
+// Compact one-line summary of an assigned_workouts row's target segments —
+// e.g. "3×1mi @ 6:50" — shared by CoachAssignmentsPage's list rows and the
+// assignment grid's cells (previously duplicated per-type inline in
+// CoachAssignmentsPage, and without the target time). `assignment` is a raw
+// DB row with its nested assigned_running_segments/assigned_swim_segments/
+// assigned_bike_segments/assigned_lifting_targets children.
+export function summarizeAssignment(assignment) {
+  const segmentsByType = {
+    running: assignment.assigned_running_segments,
+    swim: assignment.assigned_swim_segments,
+    bike: assignment.assigned_bike_segments,
+  }
+  const segments = segmentsByType[assignment.type]
+
+  if (segments?.length > 0) {
+    return segments
+      .map((seg) => {
+        const targetSeconds = hmsToSeconds({
+          hours: seg.target_time_hours,
+          minutes: seg.target_time_minutes,
+          seconds: seg.target_time_seconds,
+        })
+        const label = seg.label ? `${seg.label}: ` : ''
+        const repsPrefix = seg.reps > 1 ? `${seg.reps}×` : ''
+        const time = targetSeconds > 0 ? ` @ ${secondsToClock(targetSeconds)}` : ''
+        return `${label}${repsPrefix}${seg.distance_value}${unitAbbrev(seg.distance_unit)}${time}`
+      })
+      .join(', ')
+  }
+
+  if (assignment.type === 'lifting' && assignment.assigned_lifting_targets?.length > 0) {
+    return assignment.assigned_lifting_targets
+      .map((t) => {
+        const setsReps = t.target_sets && t.target_reps ? ` ${t.target_sets}×${t.target_reps}` : ''
+        return `${t.exercise_name}${setsReps}`
+      })
+      .join(', ')
+  }
+
+  return ''
+}
+
 // Same "times list" as summarizeReps, plus averages of the two optional
 // per-rep power-meter/cadence-sensor fields — averaged only across reps that
 // actually have a value, since not every rep (or every athlete) tracks them.
