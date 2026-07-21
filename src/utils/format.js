@@ -113,7 +113,7 @@ export function unitAbbrev(unit) {
 }
 
 // Display label + badge/toggle text for a workouts.type value, shared across
-// LogWorkoutPage, WorkoutCard, CoachAssignmentsPage, AthleteAssignmentsPage.
+// LogWorkoutForm, WorkoutCard, CoachAssignmentsPage, EventCalendar.
 export const WORKOUT_TYPE_LABELS = {
   running: 'Running',
   swim: 'Swimming',

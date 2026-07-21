@@ -39,13 +39,17 @@ export default function TargetVsActual({ assignment, workout }) {
               <div className="target-actual-segment-title">{title}</div>
               <div className="target-actual-row">
                 <span className="ta-label">Target</span>
-                <span>{targetPace || '—'}</span>
+                <span>
+                  {seg.distance_value}
+                  {unitAbbrev(seg.distance_unit)}
+                  {targetPace ? ` @ ${targetPace}` : ''}
+                </span>
               </div>
               <div className="target-actual-row">
                 <span className="ta-label">Actual</span>
                 <span>
-                  {actualSummary
-                    ? `${actualSummary.timesText}${actualSummary.avgPace ? ` — avg pace ${actualSummary.avgPace}` : ''}`
+                  {actualSegment
+                    ? `${actualSegment.distance_value}${unitAbbrev(actualSegment.distance_unit)} — ${actualSummary.timesText}${actualSummary.avgPace ? ` (avg pace ${actualSummary.avgPace})` : ''}`
                     : 'Not yet logged'}
                 </span>
               </div>
@@ -82,11 +86,19 @@ export default function TargetVsActual({ assignment, workout }) {
               <div className="target-actual-segment-title">{title}</div>
               <div className="target-actual-row">
                 <span className="ta-label">Target</span>
-                <span>{targetSeconds > 0 ? `${secondsToClock(targetSeconds)}${seg.reps > 1 ? ' per rep' : ''}` : '—'}</span>
+                <span>
+                  {seg.distance_value}
+                  {unitAbbrev(seg.distance_unit)}
+                  {targetSeconds > 0 ? ` @ ${secondsToClock(targetSeconds)}${seg.reps > 1 ? '/rep' : ''}` : ''}
+                </span>
               </div>
               <div className="target-actual-row">
                 <span className="ta-label">Actual</span>
-                <span>{actualSummary ? actualSummary.timesText : 'Not yet logged'}</span>
+                <span>
+                  {actualSegment
+                    ? `${actualSegment.distance_value}${unitAbbrev(actualSegment.distance_unit)} — ${actualSummary.timesText}`
+                    : 'Not yet logged'}
+                </span>
               </div>
             </div>
           )
@@ -124,13 +136,17 @@ export default function TargetVsActual({ assignment, workout }) {
               <div className="target-actual-segment-title">{title}</div>
               <div className="target-actual-row">
                 <span className="ta-label">Target</span>
-                <span>{targetSeconds > 0 ? `${secondsToClock(targetSeconds)}${seg.reps > 1 ? ' per rep' : ''}` : '—'}</span>
+                <span>
+                  {seg.distance_value}
+                  {unitAbbrev(seg.distance_unit)}
+                  {targetSeconds > 0 ? ` @ ${secondsToClock(targetSeconds)}${seg.reps > 1 ? '/rep' : ''}` : ''}
+                </span>
               </div>
               <div className="target-actual-row">
                 <span className="ta-label">Actual</span>
                 <span>
-                  {actualSummary
-                    ? `${actualSummary.timesText}${actualExtras.length > 0 ? `, ${actualExtras.join(', ')}` : ''}`
+                  {actualSegment
+                    ? `${actualSegment.distance_value}${unitAbbrev(actualSegment.distance_unit)} — ${actualSummary.timesText}${actualExtras.length > 0 ? `, ${actualExtras.join(', ')}` : ''}`
                     : 'Not yet logged'}
                 </span>
               </div>

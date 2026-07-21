@@ -31,10 +31,10 @@ export default function EventsPage() {
   const [saving, setSaving] = useState(false)
 
   // Athlete-only: their own assignments + logged workouts, so the calendar
-  // can show assigned workouts alongside team events (see EventCalendar's
-  // optional assignments/workoutByAssignment props). Verbatim copy of
-  // AthleteAssignmentsPage's own data-fetching — coach/admin skip this
-  // entirely and EventCalendar behaves exactly as before for them.
+  // can show assigned workouts alongside team events, and so logging/editing
+  // (via EventCalendar's in-modal LogWorkoutForm) has what it needs to
+  // detect an existing log per day. Coach/admin skip this entirely and
+  // EventCalendar behaves exactly as before for them.
   function load() {
     setLoading(true)
     const requests = isAthlete
@@ -195,6 +195,7 @@ export default function EventsPage() {
               workoutByAssignment={workoutByAssignment}
               canLog={isAthlete}
               workoutsByDate={workoutsByDate}
+              onWorkoutSaved={load}
             />
           ) : (
             <>

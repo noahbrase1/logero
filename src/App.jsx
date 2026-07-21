@@ -9,7 +9,6 @@ import CreateTeamPage from './pages/CreateTeamPage'
 import PendingPage from './pages/PendingPage'
 import RemovedPage from './pages/RemovedPage'
 import LogWorkoutPage from './pages/LogWorkoutPage'
-import WorkoutHistoryPage from './pages/WorkoutHistoryPage'
 import TeamFeedPage from './pages/TeamFeedPage'
 import RosterPage from './pages/RosterPage'
 import FormerAthletesPage from './pages/FormerAthletesPage'
@@ -20,7 +19,6 @@ import TeamSettingsPage from './pages/TeamSettingsPage'
 import EventsPage from './pages/EventsPage'
 import EventDetailPage from './pages/EventDetailPage'
 import CoachAssignmentsPage from './pages/CoachAssignmentsPage'
-import AthleteAssignmentsPage from './pages/AthleteAssignmentsPage'
 import AccountSettingsPage from './pages/AccountSettingsPage'
 import SuperAdminPage from './pages/SuperAdminPage'
 
@@ -118,12 +116,10 @@ export default function App() {
             <Route path="/" element={<EventsPage />} />
             <Route path="/log" element={<LogWorkoutPage />} />
             <Route path="/edit/:workoutId" element={<LogWorkoutPage />} />
-            <Route path="/history" element={<WorkoutHistoryPage />} />
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/messages/:id" element={<MessagesPage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/events/:id" element={<EventDetailPage />} />
-            <Route path="/assignments" element={<AthleteAssignmentsPage />} />
             <Route path="/account" element={<AccountSettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

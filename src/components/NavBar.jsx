@@ -54,9 +54,7 @@ export default function NavBar() {
       <NavLink to="/" end>
         Calendar
       </NavLink>
-      <NavLink to="/history">History</NavLink>
       <NavLink to="/messages">Messages</NavLink>
-      <NavLink to="/assignments">Assignments</NavLink>
     </>
   )
 

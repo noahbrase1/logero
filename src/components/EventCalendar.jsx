@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { formatDateHeading, formatTimeRange, workoutTypeLabel } from '../utils/format'
 import { toDateStr } from '../utils/week'
 import EventCard from './EventCard'
 import TargetVsActual from './TargetVsActual'
+import LogWorkoutForm from './LogWorkoutForm'
+import Modal from './Modal'
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTH_LABELS = [
@@ -55,7 +56,10 @@ function buildMonthGrid(year, month) {
 // selected, not just ones with events/assignments, and switches on the
 // day-panel's unified log/edit action; `workoutsByDate` (keyed by "YYYY-MM-DD")
 // is used to route that action to editing an existing log instead of
-// creating a new one.
+// creating a new one. The log/edit action opens LogWorkoutForm right here in
+// a Modal — no navigation to a separate page at all, so logging/editing
+// never leaves the calendar; `onWorkoutSaved` (required when canLog) tells
+// the parent to refetch so the day panel/indicators reflect the change.
 export default function EventCalendar({
   events,
   isCoach,
@@ -66,11 +70,12 @@ export default function EventCalendar({
   workoutByAssignment = {},
   canLog = false,
   workoutsByDate = {},
+  onWorkoutSaved,
 }) {
-  const navigate = useNavigate()
   const today = new Date()
   const [viewDate, setViewDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))
   const [selectedDate, setSelectedDate] = useState(null)
+  const [logModal, setLogModal] = useState(null) // { workoutId } | { initialAssignmentId, initialDate } | { initialDate }
 
   const year = viewDate.getFullYear()
   const month = viewDate.getMonth()
@@ -134,14 +139,23 @@ export default function EventCalendar({
   const selectedAssignments = selectedDate ? assignmentsByDate.get(selectedDate) || [] : []
   const selectedWorkout = selectedDate ? workoutsByDate[selectedDate] : null
 
-  function handleLogAction() {
+  function openLogModal() {
     if (selectedWorkout) {
-      navigate(`/edit/${selectedWorkout.id}`)
+      setLogModal({ workoutId: selectedWorkout.id })
     } else if (selectedAssignments.length > 0) {
-      navigate(`/log?assignmentId=${selectedAssignments[0].id}&date=${selectedDate}`)
+      setLogModal({ initialAssignmentId: selectedAssignments[0].id, initialDate: selectedDate })
     } else {
-      navigate(`/log?date=${selectedDate}`)
+      setLogModal({ initialDate: selectedDate })
     }
+  }
+
+  function closeLogModal() {
+    setLogModal(null)
+  }
+
+  function handleWorkoutSaved() {
+    setLogModal(null)
+    onWorkoutSaved?.()
   }
 
   return (
@@ -262,9 +276,9 @@ export default function EventCalendar({
               ))}
             </div>
           )}
-          {selectedAssignments.length > 0 && (
+          {selectedAssignments.length > 0 ? (
             <div className="assignments-list">
-              {selectedAssignments.map((a) => (
+              {selectedAssignments.map((a, i) => (
                 <div key={a.id} className="assignment-card">
                   <div className="assignment-card-header">
                     <div>
@@ -274,16 +288,50 @@ export default function EventCalendar({
                   </div>
                   {a.notes && <p className="workout-notes">{a.notes}</p>}
                   <TargetVsActual assignment={a} workout={workoutByAssignment[a.id]} />
+                  {canLog && i === 0 && (
+                    <button type="button" className="calendar-log-action" onClick={openLogModal}>
+                      {selectedWorkout ? 'Edit workout' : 'Log this workout'}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
-          )}
-          {canLog && (
-            <button type="button" className="calendar-log-action" onClick={handleLogAction}>
-              {selectedWorkout ? 'Edit workout' : selectedAssignments.length > 0 ? 'Log this workout' : 'Log a workout'}
-            </button>
+          ) : canLog && selectedWorkout ? (
+            <div className="assignments-list">
+              <div className="assignment-card">
+                <div className="assignment-card-header">
+                  <div>
+                    <span className={`type-badge type-${selectedWorkout.type}`}>
+                      {workoutTypeLabel(selectedWorkout.type)}
+                    </span>
+                  </div>
+                </div>
+                {selectedWorkout.notes && <p className="workout-notes">{selectedWorkout.notes}</p>}
+                <button type="button" className="calendar-log-action" onClick={openLogModal}>
+                  Edit workout
+                </button>
+              </div>
+            </div>
+          ) : (
+            canLog && (
+              <button type="button" className="calendar-log-action" onClick={openLogModal}>
+                Log a workout
+              </button>
+            )
           )}
         </div>
+      )}
+
+      {logModal && (
+        <Modal onClose={closeLogModal} labelledBy="log-workout-modal-heading">
+          <LogWorkoutForm
+            workoutId={logModal.workoutId}
+            initialAssignmentId={logModal.initialAssignmentId}
+            initialDate={logModal.initialDate}
+            onSaved={handleWorkoutSaved}
+            onCancel={closeLogModal}
+          />
+        </Modal>
       )}
     </div>
   )
