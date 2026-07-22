@@ -795,7 +795,8 @@ label {
   color: var(--note);
 }
 
-.type-admin {
+.type-admin,
+.type-coach {
   background: var(--accent-bg);
   color: var(--accent);
 }
@@ -1292,6 +1293,10 @@ label {
 .dm-picker-list button {
   width: 100%;
   text-align: left;
+}
+
+.dm-picker-list .type-badge {
+  margin-left: 0.5rem;
 }
 
 .conversation-view {

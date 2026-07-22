@@ -52,7 +52,16 @@ export default function ConversationList({ conversations, activeId, viewerId, is
     setError('')
     setLoadingCandidates(true)
     try {
-      const data = isCoach ? await fetchApprovedAthletes() : await fetchCoaches()
+      // A coach can message any approved athlete, or any other coach on the
+      // team (a solo coach just sees an empty coaches list, so this is a
+      // no-op for them). An athlete can still only message a coach.
+      let data
+      if (isCoach) {
+        const [athletes, coaches] = await Promise.all([fetchApprovedAthletes(), fetchCoaches()])
+        data = [...athletes, ...coaches.filter((c) => c.id !== viewerId)]
+      } else {
+        data = await fetchCoaches()
+      }
       const existingDmUserIds = new Set(
         conversations.filter((c) => c.type === 'direct').map((c) => c.otherParticipant?.id)
       )
@@ -146,13 +155,14 @@ export default function ConversationList({ conversations, activeId, viewerId, is
           )}
           {error && <p className="form-error">{error}</p>}
           {!loadingCandidates && candidates.length === 0 && !error && (
-            <p className="empty-state">{isCoach ? 'No other approved athletes to message.' : 'No coach to message.'}</p>
+            <p className="empty-state">{isCoach ? 'No other athletes or coaches to message.' : 'No coach to message.'}</p>
           )}
           <ul className="dm-picker-list">
             {candidates.map((a) => (
               <li key={a.id}>
                 <button type="button" className="secondary" onClick={() => handlePick(a.id)}>
                   {a.name || 'Unnamed user'}
+                  {a.role === 'coach' && <span className="type-badge type-coach">Coach</span>}
                 </button>
               </li>
             ))}
