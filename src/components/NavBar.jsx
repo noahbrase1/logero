@@ -32,7 +32,6 @@ export default function NavBar() {
         Team Logs
       </NavLink>
       <NavLink to="/roster">Roster</NavLink>
-      <NavLink to="/pending">Pending</NavLink>
       <NavLink to="/messages">Messages</NavLink>
       <NavLink to="/events">Calendar</NavLink>
       <NavLink to="/assignments">Assignments</NavLink>

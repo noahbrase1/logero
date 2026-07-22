@@ -49,7 +49,11 @@ export default function AssignmentGrid({ athletes, coachId }) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
-  const [selection, setSelection] = useState(new Set())
+  // Ordered array (not a Set) — selection order is meaningful for copy/paste
+  // sequencing (see computePasteTargets), so the sequence cells were
+  // selected in must survive alongside which cells are selected.
+  const [selectionOrder, setSelectionOrder] = useState([])
+  const selectionSet = useMemo(() => new Set(selectionOrder), [selectionOrder])
   const [selectionAnchor, setSelectionAnchor] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const [didDrag, setDidDrag] = useState(false)
@@ -122,24 +126,39 @@ export default function AssignmentGrid({ athletes, coachId }) {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection, selectionAnchor, clipboard, assignmentsByKey, athletes, days])
+  }, [selectionOrder, selectionAnchor, clipboard, assignmentsByKey, athletes, days])
 
+  // Ordered rectangle from anchor `a` to `b` — `a` is always first, then the
+  // cells expand row-by-row (athletes) and, within each row, column-by-column
+  // (days), stepping toward `b` in whichever direction it's in. This gives a
+  // deterministic, direction-aware selection order for a click-drag or
+  // shift-click rectangle (a plain Set has no meaningful order — an ordered
+  // array is required so copy/paste can preserve "the order cells were
+  // selected in").
   function rectangleBetween(a, b) {
     const aAthleteIdx = athleteIndexById.get(a.athleteId)
     const bAthleteIdx = athleteIndexById.get(b.athleteId)
     const aDayIdx = dayIndexByDateStr.get(a.dateStr)
     const bDayIdx = dayIndexByDateStr.get(b.dateStr)
-    const minA = Math.min(aAthleteIdx, bAthleteIdx)
-    const maxA = Math.max(aAthleteIdx, bAthleteIdx)
-    const minD = Math.min(aDayIdx, bDayIdx)
-    const maxD = Math.max(aDayIdx, bDayIdx)
-    const next = new Set()
-    for (let ai = minA; ai <= maxA; ai++) {
-      for (let di = minD; di <= maxD; di++) {
-        next.add(keyFor(athletes[ai].id, days[di].dateStr))
+    const athleteStep = bAthleteIdx >= aAthleteIdx ? 1 : -1
+    const dayStep = bDayIdx >= aDayIdx ? 1 : -1
+    const order = []
+    for (let ai = aAthleteIdx; ai !== bAthleteIdx + athleteStep; ai += athleteStep) {
+      for (let di = aDayIdx; di !== bDayIdx + dayStep; di += dayStep) {
+        order.push(keyFor(athletes[ai].id, days[di].dateStr))
       }
     }
-    return next
+    return order
+  }
+
+  // Toggles `cellKey` in an ordered selection — additive (ctrl/cmd-click,
+  // touch select-mode tap). Removing and re-adding a cell moves it to the
+  // end, which is the right call for "order selected": a cell picked again
+  // after being deselected was, in effect, just (re-)selected most recently.
+  function toggleSelection(cellKey) {
+    setSelectionOrder((prev) =>
+      prev.includes(cellKey) ? prev.filter((k) => k !== cellKey) : [...prev, cellKey]
+    )
   }
 
   function handleCellMouseDown(e, athleteId, dateStr) {
@@ -148,24 +167,19 @@ export default function AssignmentGrid({ athletes, coachId }) {
 
     if (e.shiftKey && selectionAnchor) {
       e.preventDefault()
-      setSelection(rectangleBetween(selectionAnchor, { athleteId, dateStr }))
+      setSelectionOrder(rectangleBetween(selectionAnchor, { athleteId, dateStr }))
       setDidDrag(true) // suppress the modal-opening click that follows
       return
     }
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault()
-      setSelection((prev) => {
-        const next = new Set(prev)
-        if (next.has(cellKey)) next.delete(cellKey)
-        else next.add(cellKey)
-        return next
-      })
+      toggleSelection(cellKey)
       setSelectionAnchor({ athleteId, dateStr })
       setDidDrag(true)
       return
     }
 
-    setSelection(new Set([cellKey]))
+    setSelectionOrder([cellKey])
     setSelectionAnchor({ athleteId, dateStr })
     setIsDragging(true)
     setDidDrag(false)
@@ -174,19 +188,14 @@ export default function AssignmentGrid({ athletes, coachId }) {
   function handleCellMouseEnter(athleteId, dateStr) {
     if (!isDragging || selectMode) return
     setDidDrag(true)
-    setSelection(rectangleBetween(selectionAnchor, { athleteId, dateStr }))
+    setSelectionOrder(rectangleBetween(selectionAnchor, { athleteId, dateStr }))
   }
 
   function handleCellClick(athleteId, dateStr) {
     const cellKey = keyFor(athleteId, dateStr)
 
     if (selectMode) {
-      setSelection((prev) => {
-        const next = new Set(prev)
-        if (next.has(cellKey)) next.delete(cellKey)
-        else next.add(cellKey)
-        return next
-      })
+      toggleSelection(cellKey)
       setSelectionAnchor({ athleteId, dateStr })
       return
     }
@@ -200,7 +209,7 @@ export default function AssignmentGrid({ athletes, coachId }) {
   }
 
   function handleCopy() {
-    if (selection.size === 0) {
+    if (selectionOrder.length === 0) {
       showToast('Select at least one cell to copy first', 'error')
       return
     }
@@ -208,10 +217,13 @@ export default function AssignmentGrid({ athletes, coachId }) {
     const anchorAthleteIdx = athleteIndexById.get(anchor.athleteId)
     const anchorDayIdx = dayIndexByDateStr.get(anchor.dateStr)
     const cells = []
-    for (const key of selection) {
+    // Iterated in selection order (not grid order) — empty selected cells
+    // contribute nothing to the clipboard, but the cells that do have an
+    // assignment keep their relative selection order.
+    for (const key of selectionOrder) {
       const [athleteId, dateStr] = key.split('|')
       const assignment = assignmentsByKey.get(key)
-      if (!assignment) continue // empty selected cells contribute nothing to the clipboard
+      if (!assignment) continue
       cells.push({
         athleteOffset: athleteIndexById.get(athleteId) - anchorAthleteIdx,
         dayOffset: dayIndexByDateStr.get(dateStr) - anchorDayIdx,
@@ -228,28 +240,48 @@ export default function AssignmentGrid({ athletes, coachId }) {
 
   function computePasteTargets(clipboardArg, anchorArg, selectionArg) {
     if (!clipboardArg || !anchorArg) return []
+    const cells = clipboardArg.cells
+    const targetSelection = selectionArg || []
 
-    if (clipboardArg.cells.length === 1) {
+    if (cells.length === 1) {
       // Broadcast: one copied cell applies to every cell in the target
       // selection (covers "same day, different athletes" and "same
       // athlete, different days" as one rule). Falling back to just the
       // anchor cell covers a plain single click with no drag/ctrl selection.
-      const payload = clipboardArg.cells[0].payload
-      const targetKeys = selectionArg && selectionArg.size > 0 ? Array.from(selectionArg) : [keyFor(anchorArg.athleteId, anchorArg.dateStr)]
+      const payload = cells[0].payload
+      const targetKeys = targetSelection.length > 0 ? targetSelection : [keyFor(anchorArg.athleteId, anchorArg.dateStr)]
       return targetKeys.map((key) => {
         const [athleteId, dateStr] = key.split('|')
         return { athleteId, dateStr, payload }
       })
     }
 
-    // Anchor mode: the target selection's shape is ignored — only its
-    // anchor point matters, and the clipboard's relative offsets are laid
-    // out from there. Offsets landing outside the loaded roster or the
-    // visible Mon-Sun week are silently dropped, not wrapped/clamped.
+    if (targetSelection.length > 1) {
+      // Sequence mode: the coach explicitly selected more than one paste
+      // target, so copied cells map onto those targets 1:1 in matching
+      // order — 1st copied cell to the 1st selected target, 2nd to 2nd, etc.
+      // Whichever list is shorter wins: extra copied cells beyond the
+      // number of targets are simply not used, and extra target cells
+      // beyond the number of copied cells are left untouched.
+      const count = Math.min(cells.length, targetSelection.length)
+      const targets = []
+      for (let i = 0; i < count; i++) {
+        const [athleteId, dateStr] = targetSelection[i].split('|')
+        targets.push({ athleteId, dateStr, payload: cells[i].payload })
+      }
+      return targets
+    }
+
+    // Anchor mode: no explicit multi-cell target selection (a single click,
+    // or a synthetic empty selection like "Copy previous week"'s), so the
+    // target selection's shape is ignored — only the anchor point matters,
+    // and the clipboard's relative offsets are laid out from there. Offsets
+    // landing outside the loaded roster or the visible Mon-Sun week are
+    // silently dropped, not wrapped/clamped.
     const anchorAthleteIdx = athleteIndexById.get(anchorArg.athleteId)
     const anchorDayIdx = dayIndexByDateStr.get(anchorArg.dateStr)
     const targets = []
-    for (const cell of clipboardArg.cells) {
+    for (const cell of cells) {
       const ai = anchorAthleteIdx + cell.athleteOffset
       const di = anchorDayIdx + cell.dayOffset
       if (ai < 0 || ai >= athletes.length || di < 0 || di > 6) continue
@@ -258,7 +290,7 @@ export default function AssignmentGrid({ athletes, coachId }) {
     return targets
   }
 
-  function requestPaste(clipboardArg = clipboard, anchorArg = selectionAnchor, selectionArg = selection) {
+  function requestPaste(clipboardArg = clipboard, anchorArg = selectionAnchor, selectionArg = selectionOrder) {
     if (!clipboardArg) {
       showToast('Copy something first', 'error')
       return
@@ -326,7 +358,7 @@ export default function AssignmentGrid({ athletes, coachId }) {
     const anchor = { athleteId: athletes[0].id, dateStr: toDateStr(weekStart) }
     setClipboard(clip)
     setSelectionAnchor(anchor)
-    requestPaste(clip, anchor, new Set())
+    requestPaste(clip, anchor, [])
   }
 
   function closeModal() {
@@ -403,7 +435,7 @@ export default function AssignmentGrid({ athletes, coachId }) {
           <button type="button" className="secondary" onClick={handleCopyPreviousWeek}>
             Copy previous week
           </button>
-          <button type="button" className="secondary" onClick={handleCopy} disabled={selection.size === 0}>
+          <button type="button" className="secondary" onClick={handleCopy} disabled={selectionOrder.length === 0}>
             Copy
           </button>
           <button type="button" className="secondary" onClick={() => requestPaste()} disabled={!clipboard}>
@@ -468,7 +500,7 @@ export default function AssignmentGrid({ athletes, coachId }) {
                   {days.map((d) => {
                     const cellKey = keyFor(athlete.id, d.dateStr)
                     const assignment = assignmentsByKey.get(cellKey)
-                    const isSelected = selection.has(cellKey)
+                    const isSelected = selectionSet.has(cellKey)
                     return (
                       <td
                         key={d.dateStr}

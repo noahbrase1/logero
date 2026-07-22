@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext'
 import {
   calculatePace,
   formatDate,
+  formatDistanceValue,
+  roundMiles,
   secondsToClock,
   summarizeBikeReps,
   summarizeReps,
@@ -46,7 +48,7 @@ export default function WorkoutCard({ workout, showAthleteName = false }) {
 
       {isRunning ? (
         <div className="workout-stats">
-          <Stat label="Distance" value={workout.total_distance ? `${workout.total_distance} mi` : '—'} />
+          <Stat label="Distance" value={workout.total_distance ? `${roundMiles(workout.total_distance)} mi` : '—'} />
           <Stat label="Duration" value={workout.total_duration_seconds ? secondsToClock(workout.total_duration_seconds) : '—'} />
           <Stat label="Pace" value={calculatePace(workout.total_distance, workout.total_duration_seconds) || '—'} />
           <Stat label="Effort" value={workout.perceived_effort ? `${workout.perceived_effort}/10` : '—'} />
@@ -148,7 +150,7 @@ function Stat({ label, value }) {
 function SegmentSummary({ segment }) {
   const reps = segment.reps || 1
   const { timesText, avgPace } = summarizeReps(segment.distance_meters, segment.running_segment_reps)
-  const title = `${segment.label ? `${segment.label}: ` : ''}${reps > 1 ? `${reps} × ` : ''}${segment.distance_value} ${unitAbbrev(segment.distance_unit)}`
+  const title = `${segment.label ? `${segment.label}: ` : ''}${reps > 1 ? `${reps} × ` : ''}${formatDistanceValue(segment.distance_value, segment.distance_unit)} ${unitAbbrev(segment.distance_unit)}`
 
   return (
     <div className="segment-summary">
@@ -167,7 +169,7 @@ function SegmentSummary({ segment }) {
 function SwimSegmentSummary({ segment }) {
   const reps = segment.reps || 1
   const { timesText } = summarizeReps(segment.distance_meters, segment.swim_segment_reps)
-  const title = `${segment.label ? `${segment.label}: ` : ''}${reps > 1 ? `${reps} × ` : ''}${segment.distance_value} ${unitAbbrev(segment.distance_unit)}`
+  const title = `${segment.label ? `${segment.label}: ` : ''}${reps > 1 ? `${reps} × ` : ''}${formatDistanceValue(segment.distance_value, segment.distance_unit)} ${unitAbbrev(segment.distance_unit)}`
 
   return (
     <div className="segment-summary">
@@ -183,7 +185,7 @@ function SwimSegmentSummary({ segment }) {
 function BikeSegmentSummary({ segment }) {
   const reps = segment.reps || 1
   const { timesText, avgWatts, avgCadence } = summarizeBikeReps(segment.distance_meters, segment.bike_segment_reps)
-  const title = `${segment.label ? `${segment.label}: ` : ''}${reps > 1 ? `${reps} × ` : ''}${segment.distance_value} ${unitAbbrev(segment.distance_unit)}`
+  const title = `${segment.label ? `${segment.label}: ` : ''}${reps > 1 ? `${reps} × ` : ''}${formatDistanceValue(segment.distance_value, segment.distance_unit)} ${unitAbbrev(segment.distance_unit)}`
 
   const extras = []
   if (avgWatts != null) extras.push(`${avgWatts}w avg`)

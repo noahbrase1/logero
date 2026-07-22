@@ -6,6 +6,7 @@ import { formatDate, summarizeAssignment, workoutTypeLabel } from '../utils/form
 import { toDateStr } from '../utils/week'
 import AssignmentForm from '../components/AssignmentForm'
 import AssignmentGrid from '../components/AssignmentGrid'
+import ExportDayModal from '../components/ExportDayModal'
 import { useToast } from '../context/ToastContext'
 
 export default function CoachAssignmentsPage() {
@@ -23,6 +24,11 @@ export default function CoachAssignmentsPage() {
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')
   const [formKey, setFormKey] = useState(0) // bump to remount AssignmentForm, clearing its internal state after a successful submit
+
+  const [exportDate, setExportDate] = useState(() => toDateStr(new Date()))
+  const [exportAssignments, setExportAssignments] = useState(null) // null = modal closed
+  const [exportLoading, setExportLoading] = useState(false)
+  const [exportError, setExportError] = useState('')
 
   function load() {
     setLoading(true)
@@ -52,6 +58,26 @@ export default function CoachAssignmentsPage() {
 
   function clearAthleteSelection() {
     setSelectedAthleteIds(new Set())
+  }
+
+  // Fetches the chosen day's assignments and opens the review modal, where
+  // the coach groups/reorders before anything actually downloads — see
+  // ExportDayModal.
+  async function handleExportDay() {
+    setExportError('')
+    setExportLoading(true)
+    try {
+      const data = await fetchAssignmentsForCoach({ startDate: exportDate, endDate: exportDate })
+      if (data.length === 0) {
+        showToast('No assignments for this day', 'error')
+      } else {
+        setExportAssignments(data)
+      }
+    } catch (err) {
+      setExportError(err.message)
+    } finally {
+      setExportLoading(false)
+    }
   }
 
   async function handleSubmit(payload) {
@@ -89,6 +115,19 @@ export default function CoachAssignmentsPage() {
       <div className="page-header-row">
         <h1>Assigned workouts</h1>
       </div>
+
+      {canCreate && (
+        <div className="export-day-toolbar">
+          <label>
+            Export day
+            <input type="date" value={exportDate} onChange={(e) => setExportDate(e.target.value)} />
+          </label>
+          <button type="button" className="secondary" onClick={handleExportDay} disabled={exportLoading}>
+            {exportLoading ? 'Loading…' : 'Export as PDF'}
+          </button>
+        </div>
+      )}
+      {exportError && <p className="form-error">{exportError}</p>}
 
       <div className="type-toggle">
         {canCreate && (
@@ -171,6 +210,14 @@ export default function CoachAssignmentsPage() {
             ))}
           </div>
         </>
+      )}
+
+      {exportAssignments && (
+        <ExportDayModal
+          dateStr={exportDate}
+          assignments={exportAssignments}
+          onClose={() => setExportAssignments(null)}
+        />
       )}
     </div>
   )

@@ -29,7 +29,7 @@ export function calculatePace(distance, durationSeconds) {
 export function formatTargetPace(distanceValue, distanceUnit, reps, targetSeconds) {
   if (!targetSeconds || targetSeconds <= 0) return null
   if (reps > 1) {
-    return `${secondsToClock(targetSeconds)}/${distanceValue}${unitAbbrev(distanceUnit)}`
+    return `${secondsToClock(targetSeconds)}/${formatDistanceValue(distanceValue, distanceUnit)}${unitAbbrev(distanceUnit)}`
   }
   return calculatePace(metersToMiles(distanceToMeters(distanceValue, distanceUnit)), targetSeconds)
 }
@@ -110,6 +110,20 @@ export function unitAbbrev(unit) {
   if (unit === 'km') return 'km'
   if (unit === 'yards') return 'yd'
   return 'mi'
+}
+
+// Display-only rounding to the nearest 0.1 mile — never applied to a value
+// before it's stored, only at the point a miles figure is rendered as text.
+export function roundMiles(miles) {
+  return Math.round((Number(miles) || 0) * 10) / 10
+}
+
+// A distance value as it should be *displayed*: rounded to the nearest 0.1
+// when its unit is miles (the one unit prone to long decimals from mileage
+// math/conversion), shown exactly as entered/stored otherwise (meters/km/
+// yards aren't subject to this rounding).
+export function formatDistanceValue(value, unit) {
+  return unit === 'miles' ? roundMiles(value) : value
 }
 
 // Display label + badge/toggle text for a workouts.type value, shared across
@@ -207,6 +221,90 @@ export function getInitials(name) {
   return trimmed ? trimmed[0].toUpperCase() : '?'
 }
 
+// Distance segments (running/swim/bike all share the same
+// {distance_value, distance_unit, reps} shape) summed to miles, accounting
+// for reps — converted regardless of the segment's own unit (yards/meters/
+// km all fold down to miles here) since the calendar shows one figure
+// across sports "for now" rather than per-sport units.
+function sumSegmentDistanceMiles(segments) {
+  const miles = (segments || []).reduce((total, seg) => {
+    const meters = distanceToMeters(seg.distance_value, seg.distance_unit)
+    return total + metersToMiles(meters) * (seg.reps || 1)
+  }, 0)
+  return Math.round(miles * 100) / 100
+}
+
+const ASSIGNED_SEGMENTS_FIELD_BY_TYPE = {
+  running: 'assigned_running_segments',
+  swim: 'assigned_swim_segments',
+  bike: 'assigned_bike_segments',
+}
+
+const LOGGED_SEGMENTS_FIELD_BY_TYPE = {
+  running: 'running_segments',
+  swim: 'swim_segments',
+  bike: 'bike_segments',
+}
+
+// Total assigned distance across a running/swim/bike assignment's target
+// segments, in miles. Used by the athlete calendar to show assigned
+// mileage on a day cell before it's logged. 0 for lifting/note (no
+// distance concept).
+export function sumAssignedDistanceMiles(assignment) {
+  const field = ASSIGNED_SEGMENTS_FIELD_BY_TYPE[assignment?.type]
+  return field ? sumSegmentDistanceMiles(assignment[field]) : 0
+}
+
+// Actual logged distance for a running/swim/bike workout, in miles. Running
+// already stores a precomputed total_distance (in miles) on the workout row
+// itself (see LogWorkoutForm's sumSegmentsDistanceMiles, which is what
+// populates it) — swim/bike don't have that column, so their segments are
+// summed the same way assigned distance is. 0 for lifting/note.
+export function sumLoggedDistanceMiles(workout) {
+  if (!workout) return 0
+  if (workout.type === 'running' && workout.total_distance) return workout.total_distance
+  const field = LOGGED_SEGMENTS_FIELD_BY_TYPE[workout.type]
+  return field ? sumSegmentDistanceMiles(workout[field]) : 0
+}
+
+// Same segment list, but reported in whatever single unit was actually used
+// to enter it, instead of converted to miles — only possible when every
+// segment shares one unit. A workout that mixes units (e.g. a "2mi"
+// warm-up plus "800m" repeats) has no single unit to report, so the caller
+// falls back to a converted miles total in that case.
+function sumSegmentDistanceSameUnit(segments) {
+  if (!segments || segments.length === 0) return null
+  const unit = segments[0].distance_unit
+  if (!segments.every((s) => s.distance_unit === unit)) return null
+  const value = segments.reduce((total, s) => total + (Number(s.distance_value) || 0) * (s.reps || 1), 0)
+  return value > 0 ? { value, unit } : null
+}
+
+// Assigned distance for the athlete calendar's day cell, shown in whatever
+// unit the coach actually assigned it in — falls back to a converted miles
+// total when the assignment's target segments mix units.
+export function assignedDistanceSummary(assignment) {
+  const field = ASSIGNED_SEGMENTS_FIELD_BY_TYPE[assignment?.type]
+  const sameUnit = field ? sumSegmentDistanceSameUnit(assignment[field]) : null
+  if (sameUnit) return sameUnit
+  const miles = sumAssignedDistanceMiles(assignment)
+  return miles > 0 ? { value: miles, unit: 'miles' } : null
+}
+
+// Logged distance for the athlete calendar's day cell, shown in whatever
+// unit the athlete actually logged it in — falls back to a converted miles
+// total when the logged segments mix units (or, for a running log with no
+// segment breakdown at all, its precomputed total_distance, which is always
+// miles regardless of what unit the athlete originally typed).
+export function loggedDistanceSummary(workout) {
+  if (!workout) return null
+  const field = LOGGED_SEGMENTS_FIELD_BY_TYPE[workout.type]
+  const sameUnit = field ? sumSegmentDistanceSameUnit(workout[field]) : null
+  if (sameUnit) return sameUnit
+  const miles = sumLoggedDistanceMiles(workout)
+  return miles > 0 ? { value: miles, unit: 'miles' } : null
+}
+
 // Compact one-line summary of an assigned_workouts row's target segments —
 // e.g. "3×1mi @ 6:50" — shared by CoachAssignmentsPage's list rows and the
 // assignment grid's cells (previously duplicated per-type inline in
@@ -232,7 +330,7 @@ export function summarizeAssignment(assignment) {
         const label = seg.label ? `${seg.label}: ` : ''
         const repsPrefix = seg.reps > 1 ? `${seg.reps}×` : ''
         const time = targetSeconds > 0 ? ` @ ${secondsToClock(targetSeconds)}` : ''
-        return `${label}${repsPrefix}${seg.distance_value}${unitAbbrev(seg.distance_unit)}${time}`
+        return `${label}${repsPrefix}${formatDistanceValue(seg.distance_value, seg.distance_unit)}${unitAbbrev(seg.distance_unit)}${time}`
       })
       .join(', ')
   }

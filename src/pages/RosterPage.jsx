@@ -1,14 +1,23 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { fetchTeamRoster, removeAthlete } from '../lib/workouts'
+import {
+  approveProfile,
+  fetchPendingProfiles,
+  fetchTeamRoster,
+  rejectProfile,
+  removeAthlete,
+} from '../lib/workouts'
 import { startDirectConversation } from '../lib/messages'
 import { useToast } from '../context/ToastContext'
 import StatRow from '../components/StatRow'
 import { SkeletonList } from '../components/Skeleton'
 
+// Pending sign-ups are shown above the roster on this same page (coach
+// only — admin has no approve/reject ability, so it never fetches or
+// renders this section) rather than on their own separate tab.
 export default function RosterPage() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const canManage = profile?.role === 'coach'
   const [athletes, setAthletes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -19,12 +28,61 @@ export default function RosterPage() {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
+  const [pending, setPending] = useState([])
+  const [pendingLoading, setPendingLoading] = useState(canManage)
+  const [pendingError, setPendingError] = useState('')
+  const [busyPendingId, setBusyPendingId] = useState(null)
+  const [confirmingRejectId, setConfirmingRejectId] = useState(null)
+
   useEffect(() => {
     fetchTeamRoster()
       .then(setAthletes)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
+
+  function loadPending() {
+    setPendingLoading(true)
+    fetchPendingProfiles()
+      .then(setPending)
+      .catch((err) => setPendingError(err.message))
+      .finally(() => setPendingLoading(false))
+  }
+
+  useEffect(() => {
+    if (!canManage) return
+    loadPending()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManage])
+
+  async function handleApprovePending(profileId, role) {
+    setBusyPendingId(profileId)
+    setPendingError('')
+    try {
+      await approveProfile(profileId, role, user.id)
+      setPending((prev) => prev.filter((p) => p.id !== profileId))
+      showToast(`Approved as ${role}`)
+    } catch (err) {
+      setPendingError(err.message)
+    } finally {
+      setBusyPendingId(null)
+    }
+  }
+
+  async function handleRejectPending(pendingProfile) {
+    setBusyPendingId(pendingProfile.id)
+    setPendingError('')
+    try {
+      await rejectProfile(pendingProfile.id)
+      setPending((prev) => prev.filter((p) => p.id !== pendingProfile.id))
+      setConfirmingRejectId(null)
+      showToast(`${pendingProfile.name || 'Sign-up'} rejected`)
+    } catch (err) {
+      setPendingError(err.message)
+    } finally {
+      setBusyPendingId(null)
+    }
+  }
 
   async function handleMessage(athleteId) {
     setMessagingId(athleteId)
@@ -61,6 +119,80 @@ export default function RosterPage() {
           Former athletes →
         </Link>
       </div>
+
+      {canManage && (pendingLoading || pendingError || pending.length > 0) && (
+        <>
+          <h2 className="events-section-heading">Pending sign-ups</h2>
+          {pendingLoading && <SkeletonList count={2} />}
+          {pendingError && <p className="form-error">{pendingError}</p>}
+
+          {!pendingLoading && !pendingError && pending.length > 0 && (
+            <ul className="pending-list">
+              {pending.map((p) => (
+                <li key={p.id} className="pending-item">
+                  <div>
+                    <span className="roster-name">{p.name || 'Unnamed user'}</span>
+                    <span className="pending-date">signed up {new Date(p.created_at).toLocaleDateString()}</span>
+                  </div>
+                  {confirmingRejectId === p.id ? (
+                    <div className="pending-actions">
+                      <span className="form-error">
+                        Reject {p.name || 'this sign-up'}? This deletes their account entirely, freeing up their email
+                        to sign up again if needed. This cannot be undone.
+                      </span>
+                      <button
+                        type="button"
+                        className="danger-solid"
+                        disabled={busyPendingId === p.id}
+                        onClick={() => handleRejectPending(p)}
+                      >
+                        {busyPendingId === p.id ? 'Rejecting…' : 'Yes, reject'}
+                      </button>
+                      <button type="button" className="link-button" onClick={() => setConfirmingRejectId(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="pending-actions">
+                      <button
+                        type="button"
+                        disabled={busyPendingId === p.id}
+                        onClick={() => handleApprovePending(p.id, 'athlete')}
+                      >
+                        Approve as Athlete
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busyPendingId === p.id}
+                        onClick={() => handleApprovePending(p.id, 'coach')}
+                      >
+                        Approve as Coach
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busyPendingId === p.id}
+                        onClick={() => handleApprovePending(p.id, 'admin')}
+                      >
+                        Approve as Admin
+                      </button>
+                      <button
+                        type="button"
+                        className="link-button danger"
+                        disabled={busyPendingId === p.id}
+                        onClick={() => setConfirmingRejectId(p.id)}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
 
       {!loading && !error && athletes.length > 0 && (
         <StatRow stats={[{ label: 'On the roster', value: athletes.length }]} />

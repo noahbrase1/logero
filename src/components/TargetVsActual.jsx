@@ -1,4 +1,5 @@
 import {
+  formatDistanceValue,
   formatTargetPace,
   hmsToSeconds,
   secondsToClock,
@@ -22,7 +23,7 @@ export default function TargetVsActual({ assignment, workout }) {
       <div className="target-actual">
         <div className="target-actual-heading">Target vs. actual</div>
         {targetSegments.map((seg, i) => {
-          const title = `${seg.label ? `${seg.label} — ` : ''}${seg.reps > 1 ? `${seg.reps} × ` : ''}${seg.distance_value} ${unitAbbrev(seg.distance_unit)}`
+          const title = `${seg.label ? `${seg.label} — ` : ''}${seg.reps > 1 ? `${seg.reps} × ` : ''}${formatDistanceValue(seg.distance_value, seg.distance_unit)} ${unitAbbrev(seg.distance_unit)}`
           const targetSeconds = hmsToSeconds({
             hours: seg.target_time_hours,
             minutes: seg.target_time_minutes,
@@ -40,7 +41,7 @@ export default function TargetVsActual({ assignment, workout }) {
               <div className="target-actual-row">
                 <span className="ta-label">Target</span>
                 <span>
-                  {seg.distance_value}
+                  {formatDistanceValue(seg.distance_value, seg.distance_unit)}
                   {unitAbbrev(seg.distance_unit)}
                   {targetPace ? ` @ ${targetPace}` : ''}
                 </span>
@@ -49,7 +50,7 @@ export default function TargetVsActual({ assignment, workout }) {
                 <span className="ta-label">Actual</span>
                 <span>
                   {actualSegment
-                    ? `${actualSegment.distance_value}${unitAbbrev(actualSegment.distance_unit)} — ${actualSummary.timesText}${actualSummary.avgPace ? ` (avg pace ${actualSummary.avgPace})` : ''}`
+                    ? `${formatDistanceValue(actualSegment.distance_value, actualSegment.distance_unit)}${unitAbbrev(actualSegment.distance_unit)} — ${actualSummary.timesText}${actualSummary.avgPace ? ` (avg pace ${actualSummary.avgPace})` : ''}`
                     : 'Not yet logged'}
                 </span>
               </div>
@@ -70,7 +71,7 @@ export default function TargetVsActual({ assignment, workout }) {
       <div className="target-actual">
         <div className="target-actual-heading">Target vs. actual</div>
         {targetSegments.map((seg, i) => {
-          const title = `${seg.label ? `${seg.label} — ` : ''}${seg.reps > 1 ? `${seg.reps} × ` : ''}${seg.distance_value} ${unitAbbrev(seg.distance_unit)}`
+          const title = `${seg.label ? `${seg.label} — ` : ''}${seg.reps > 1 ? `${seg.reps} × ` : ''}${formatDistanceValue(seg.distance_value, seg.distance_unit)} ${unitAbbrev(seg.distance_unit)}`
           const targetSeconds = hmsToSeconds({
             hours: seg.target_time_hours,
             minutes: seg.target_time_minutes,
@@ -87,7 +88,7 @@ export default function TargetVsActual({ assignment, workout }) {
               <div className="target-actual-row">
                 <span className="ta-label">Target</span>
                 <span>
-                  {seg.distance_value}
+                  {formatDistanceValue(seg.distance_value, seg.distance_unit)}
                   {unitAbbrev(seg.distance_unit)}
                   {targetSeconds > 0 ? ` @ ${secondsToClock(targetSeconds)}${seg.reps > 1 ? '/rep' : ''}` : ''}
                 </span>
@@ -96,7 +97,7 @@ export default function TargetVsActual({ assignment, workout }) {
                 <span className="ta-label">Actual</span>
                 <span>
                   {actualSegment
-                    ? `${actualSegment.distance_value}${unitAbbrev(actualSegment.distance_unit)} — ${actualSummary.timesText}`
+                    ? `${formatDistanceValue(actualSegment.distance_value, actualSegment.distance_unit)}${unitAbbrev(actualSegment.distance_unit)} — ${actualSummary.timesText}`
                     : 'Not yet logged'}
                 </span>
               </div>
@@ -117,7 +118,7 @@ export default function TargetVsActual({ assignment, workout }) {
       <div className="target-actual">
         <div className="target-actual-heading">Target vs. actual</div>
         {targetSegments.map((seg, i) => {
-          const title = `${seg.label ? `${seg.label} — ` : ''}${seg.reps > 1 ? `${seg.reps} × ` : ''}${seg.distance_value} ${unitAbbrev(seg.distance_unit)}`
+          const title = `${seg.label ? `${seg.label} — ` : ''}${seg.reps > 1 ? `${seg.reps} × ` : ''}${formatDistanceValue(seg.distance_value, seg.distance_unit)} ${unitAbbrev(seg.distance_unit)}`
           const targetSeconds = hmsToSeconds({
             hours: seg.target_time_hours,
             minutes: seg.target_time_minutes,
@@ -137,7 +138,7 @@ export default function TargetVsActual({ assignment, workout }) {
               <div className="target-actual-row">
                 <span className="ta-label">Target</span>
                 <span>
-                  {seg.distance_value}
+                  {formatDistanceValue(seg.distance_value, seg.distance_unit)}
                   {unitAbbrev(seg.distance_unit)}
                   {targetSeconds > 0 ? ` @ ${secondsToClock(targetSeconds)}${seg.reps > 1 ? '/rep' : ''}` : ''}
                 </span>
@@ -146,7 +147,7 @@ export default function TargetVsActual({ assignment, workout }) {
                 <span className="ta-label">Actual</span>
                 <span>
                   {actualSegment
-                    ? `${actualSegment.distance_value}${unitAbbrev(actualSegment.distance_unit)} — ${actualSummary.timesText}${actualExtras.length > 0 ? `, ${actualExtras.join(', ')}` : ''}`
+                    ? `${formatDistanceValue(actualSegment.distance_value, actualSegment.distance_unit)}${unitAbbrev(actualSegment.distance_unit)} — ${actualSummary.timesText}${actualExtras.length > 0 ? `, ${actualExtras.join(', ')}` : ''}`
                     : 'Not yet logged'}
                 </span>
               </div>

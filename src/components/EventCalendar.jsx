@@ -1,5 +1,13 @@
 import { useMemo, useState } from 'react'
-import { formatDateHeading, formatTimeRange, workoutTypeLabel } from '../utils/format'
+import {
+  assignedDistanceSummary,
+  formatDateHeading,
+  formatDistanceValue,
+  formatTimeRange,
+  loggedDistanceSummary,
+  unitAbbrev,
+  workoutTypeLabel,
+} from '../utils/format'
 import { toDateStr } from '../utils/week'
 import EventCard from './EventCard'
 import TargetVsActual from './TargetVsActual'
@@ -41,6 +49,25 @@ function buildMonthGrid(year, month) {
   return cells
 }
 
+// Distance shown directly on a day cell (athlete calendar only) — in
+// whatever unit was actually used to assign/log it (falling back to a
+// converted miles total only when a single workout mixes units — see
+// loggedDistanceSummary/assignedDistanceSummary). Actual logged distance
+// always wins over the assigned target once a distance-type workout exists
+// for the day, whether or not it fulfills an assignment — a day logged with
+// no assignment at all still shows its distance, same as one that does.
+function dayDistance(dateStr, dayAssignments, workoutsByDate) {
+  const workout = workoutsByDate[dateStr]
+  const logged = workout ? loggedDistanceSummary(workout) : null
+  if (logged) return { ...logged, isActual: true, type: workout.type }
+
+  for (const a of dayAssignments) {
+    const assigned = assignedDistanceSummary(a)
+    if (assigned) return { ...assigned, isActual: false, type: a.type }
+  }
+  return null
+}
+
 // `events`: full events array (each with .date "YYYY-MM-DD"). `isCoach`/
 // `onEdit`/`onDelete`/`editing` are forwarded to EventCard for the
 // day-detail panel, same as EventsPage's own list — clicking a date just
@@ -60,6 +87,12 @@ function buildMonthGrid(year, month) {
 // a Modal — no navigation to a separate page at all, so logging/editing
 // never leaves the calendar; `onWorkoutSaved` (required when canLog) tells
 // the parent to refetch so the day panel/indicators reflect the change.
+//
+// `showAthleteData` (defaults to `canLog`) separately controls whether every
+// day is selectable and shows mileage/logged-workout info at all, so a coach
+// viewing an athlete's calendar read-only (AthleteCalendarPage) can pass
+// `canLog={false} showAthleteData={true}` — sees exactly what the athlete
+// sees, just without any log/edit action rendered.
 export default function EventCalendar({
   events,
   isCoach,
@@ -69,6 +102,7 @@ export default function EventCalendar({
   assignments = [],
   workoutByAssignment = {},
   canLog = false,
+  showAthleteData = canLog,
   workoutsByDate = {},
   onWorkoutSaved,
 }) {
@@ -131,13 +165,18 @@ export default function EventCalendar({
   }
 
   function selectDate(dateStr, hasEvents, hasAssignment) {
-    if (!canLog && !hasEvents && !hasAssignment) return
+    if (!showAthleteData && !hasEvents && !hasAssignment) return
     setSelectedDate((prev) => (prev === dateStr ? null : dateStr))
   }
 
   const selectedEvents = selectedDate ? eventsByDate.get(selectedDate) || [] : []
   const selectedAssignments = selectedDate ? assignmentsByDate.get(selectedDate) || [] : []
   const selectedWorkout = selectedDate ? workoutsByDate[selectedDate] : null
+  // A future date can't have a log yet — it hasn't happened. Only gates
+  // *creating* a new log; an already-existing one (edge case: logged before
+  // this restriction existed) stays editable, and assigned workouts/events
+  // still show normally either way.
+  const isFutureDate = Boolean(selectedDate) && selectedDate > todayStr
 
   function openLogModal() {
     if (selectedWorkout) {
@@ -219,6 +258,7 @@ export default function EventCalendar({
           const hasAssignment = dayAssignments.length > 0
           const isToday = dateStr === todayStr
           const isSelected = dateStr === selectedDate
+          const distance = showAthleteData ? dayDistance(dateStr, dayAssignments, workoutsByDate) : null
 
           return (
             <button
@@ -233,9 +273,17 @@ export default function EventCalendar({
                 .filter(Boolean)
                 .join(' ')}
               onClick={() => selectDate(dateStr, hasEvents, hasAssignment)}
-              disabled={!canLog && !hasEvents && !hasAssignment}
+              disabled={!showAthleteData && !hasEvents && !hasAssignment}
             >
               <span className="calendar-cell-date">{date.getDate()}</span>
+              {distance && (
+                <span
+                  className={`calendar-cell-miles type-${distance.type} ${distance.isActual ? 'is-actual' : 'is-target'}`}
+                >
+                  {formatDistanceValue(distance.value, distance.unit)}
+                  {unitAbbrev(distance.unit)}
+                </span>
+              )}
               {(hasEvents || hasAssignment) && (
                 <span className="calendar-cell-indicators" aria-hidden="true">
                   {hasEvents && <span className="calendar-cell-dot" />}
@@ -266,7 +314,7 @@ export default function EventCalendar({
         })}
       </div>
 
-      {selectedDate && (selectedEvents.length > 0 || selectedAssignments.length > 0 || canLog) && (
+      {selectedDate && (selectedEvents.length > 0 || selectedAssignments.length > 0 || showAthleteData) && (
         <div className="calendar-day-panel">
           <h3>{formatDateHeading(selectedDate)}</h3>
           {selectedEvents.length > 0 && (
@@ -289,14 +337,22 @@ export default function EventCalendar({
                   {a.notes && <p className="workout-notes">{a.notes}</p>}
                   <TargetVsActual assignment={a} workout={workoutByAssignment[a.id]} />
                   {canLog && i === 0 && (
-                    <button type="button" className="calendar-log-action" onClick={openLogModal}>
-                      {selectedWorkout ? 'Edit workout' : 'Log this workout'}
-                    </button>
+                    selectedWorkout ? (
+                      <button type="button" className="calendar-log-action" onClick={openLogModal}>
+                        Edit workout
+                      </button>
+                    ) : isFutureDate ? (
+                      <p className="empty-state calendar-log-action">You can't log a workout for a future date yet.</p>
+                    ) : (
+                      <button type="button" className="calendar-log-action" onClick={openLogModal}>
+                        Log this workout
+                      </button>
+                    )
                   )}
                 </div>
               ))}
             </div>
-          ) : canLog && selectedWorkout ? (
+          ) : showAthleteData && selectedWorkout ? (
             <div className="assignments-list">
               <div className="assignment-card">
                 <div className="assignment-card-header">
@@ -307,17 +363,22 @@ export default function EventCalendar({
                   </div>
                 </div>
                 {selectedWorkout.notes && <p className="workout-notes">{selectedWorkout.notes}</p>}
-                <button type="button" className="calendar-log-action" onClick={openLogModal}>
-                  Edit workout
-                </button>
+                {canLog && (
+                  <button type="button" className="calendar-log-action" onClick={openLogModal}>
+                    Edit workout
+                  </button>
+                )}
               </div>
             </div>
           ) : (
-            canLog && (
+            canLog &&
+            (isFutureDate ? (
+              <p className="empty-state calendar-log-action">You can't log a workout for a future date yet.</p>
+            ) : (
               <button type="button" className="calendar-log-action" onClick={openLogModal}>
                 Log a workout
               </button>
-            )
+            ))
           )}
         </div>
       )}

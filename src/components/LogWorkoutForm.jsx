@@ -12,7 +12,7 @@ import {
   updateSwimWorkout,
 } from '../lib/workouts'
 import { fetchAssignmentById } from '../lib/assignments'
-import { distanceToMeters, hmsToSeconds, metersToMiles, secondsToHms } from '../utils/format'
+import { distanceToMeters, hmsToSeconds, metersToMiles, roundMiles, secondsToHms } from '../utils/format'
 import RunningSegmentsEditor, { emptySegment } from './RunningSegmentsEditor'
 import SwimSegmentsEditor, { emptySwimSegment } from './SwimSegmentsEditor'
 import BikeSegmentsEditor, { emptyBikeSegment } from './BikeSegmentsEditor'
@@ -470,7 +470,7 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                     <div>
                       <span className="total-duration-label">Total distance</span>
                       <span className="total-duration-value">
-                        {totalDistanceMiles > 0 ? `${totalDistanceMiles} mi` : '—'}
+                        {totalDistanceMiles > 0 ? `${roundMiles(totalDistanceMiles)} mi` : '—'}
                       </span>
                     </div>
                     <div>

@@ -13,7 +13,7 @@ import TeamFeedPage from './pages/TeamFeedPage'
 import RosterPage from './pages/RosterPage'
 import FormerAthletesPage from './pages/FormerAthletesPage'
 import AthleteDetailPage from './pages/AthleteDetailPage'
-import PendingApprovalsPage from './pages/PendingApprovalsPage'
+import AthleteCalendarPage from './pages/AthleteCalendarPage'
 import MessagesPage from './pages/MessagesPage'
 import TeamSettingsPage from './pages/TeamSettingsPage'
 import EventsPage from './pages/EventsPage'
@@ -81,7 +81,7 @@ export default function App() {
             <Route path="/roster" element={<RosterPage />} />
             <Route path="/former-athletes" element={<FormerAthletesPage />} />
             <Route path="/athletes/:id" element={<AthleteDetailPage />} />
-            <Route path="/pending" element={<PendingApprovalsPage />} />
+            <Route path="/athletes/:id/calendar" element={<AthleteCalendarPage />} />
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/messages/:id" element={<MessagesPage />} />
             <Route path="/settings" element={<TeamSettingsPage />} />
@@ -95,13 +95,15 @@ export default function App() {
           // Read-only athletic-director view: the same coach-facing pages,
           // reused as-is — each one hides its own write controls when
           // profile.role === 'admin' (see NavBar/RosterPage/TeamSettingsPage/
-          // CoachAssignmentsPage/MessagesPage). No /pending route here on
-          // purpose — admins can view the roster but never approve/manage it.
+          // CoachAssignmentsPage/MessagesPage). RosterPage's pending-signups
+          // section is one such control — it only fetches/renders for a
+          // coach, so an admin's Roster page never shows it at all.
           <Routes>
             <Route path="/" element={<TeamFeedPage />} />
             <Route path="/roster" element={<RosterPage />} />
             <Route path="/former-athletes" element={<FormerAthletesPage />} />
             <Route path="/athletes/:id" element={<AthleteDetailPage />} />
+            <Route path="/athletes/:id/calendar" element={<AthleteCalendarPage />} />
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/messages/:id" element={<MessagesPage />} />
             <Route path="/settings" element={<TeamSettingsPage />} />

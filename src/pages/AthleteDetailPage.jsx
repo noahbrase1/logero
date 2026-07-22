@@ -28,9 +28,12 @@ export default function AthleteDetailPage() {
 
   return (
     <div>
-      <div className="page">
+      <div className="page page-header-row">
         <Link to={isRemoved ? '/former-athletes' : '/roster'} className="link-button">
           {isRemoved ? '← Back to former athletes' : '← Back to roster'}
+        </Link>
+        <Link to={`/athletes/${id}/calendar`} className="link-button">
+          View calendar →
         </Link>
       </div>
       <WorkoutHistoryPage userId={id} title={`${profile.name || 'Athlete'}'s workouts`} />

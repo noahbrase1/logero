@@ -81,7 +81,7 @@ src/
 ├── lib/                        # one Supabase query module per domain — see "Data layer convention" below
 │   ├── supabaseClient.js        # the only place supabase-js is instantiated
 │   ├── workouts.js               # workouts/profiles/roster queries (fetchTeamRoster, removeAthlete, reinstateAthlete, approveProfile, rejectProfile)
-│   ├── assignments.js            # assigned_workouts + targets
+│   ├── assignments.js            # assigned_workouts + targets, plus deleteAssignment()/assignmentToFormPayload()/date-range fetchAssignmentsForCoach() for the coach assignment grid (see "Coach assignment grid" below)
 │   ├── messages.js               # conversations/messages, DM + group RPC wrappers, fetchAllTeamConversations (admin-only team-wide visibility), image upload/signed-URL helpers (see "Messaging" below)
 │   ├── events.js                 # events + meet lineups
 │   ├── teamSettings.js           # team_settings read/update (RLS-scoped to the caller's own team)
@@ -95,15 +95,14 @@ src/
 │   ├── PendingPage.jsx           # role === 'pending' gate screen
 │   ├── RemovedPage.jsx           # role === 'removed' gate screen
 │   ├── TeamFeedPage.jsx          # coach/admin home ("Team Logs")
-│   ├── LogWorkoutPage.jsx        # athlete home
-│   ├── WorkoutHistoryPage.jsx    # shared: own history (athlete) or any athlete's (coach/admin, via userId prop)
-│   ├── RosterPage.jsx / FormerAthletesPage.jsx / AthleteDetailPage.jsx   # FormerAthletesPage carries the Reinstate action
-│   ├── PendingApprovalsPage.jsx  # coach-only; Approve as Athlete/Coach/Admin, or Reject (deletes the account outright)
+│   ├── LogWorkoutPage.jsx        # thin wrapper around LogWorkoutForm at /log and /edit/:workoutId — not nav-linked; the athlete calendar opens LogWorkoutForm directly in a modal instead, see "Athlete calendar" below
+│   ├── WorkoutHistoryPage.jsx    # coach/admin only now, via AthleteDetailPage (userId prop) — athletes no longer have a standalone History tab, see "Athlete calendar" below
+│   ├── RosterPage.jsx / FormerAthletesPage.jsx / AthleteDetailPage.jsx   # RosterPage shows pending sign-ups (coach-only; Approve as Athlete/Coach/Admin, or Reject — deletes the account outright) above the approved roster on one page, not a separate tab; FormerAthletesPage carries the Reinstate action
 │   ├── MessagesPage.jsx          # shared, branches on profile.role internally — admin sees every team conversation, not just its own
 │   ├── TeamSettingsPage.jsx      # coach edits / admin views theme, plus the team's invite link
 │   ├── AccountSettingsPage.jsx   # self-service name/email/password, plus a push-notifications opt-in toggle — any logged-in athlete/coach/admin
-│   ├── EventsPage.jsx / EventDetailPage.jsx   # shared
-│   ├── CoachAssignmentsPage.jsx / AthleteAssignmentsPage.jsx   # CoachAssignmentsPage is also used read-only by admin
+│   ├── EventsPage.jsx / EventDetailPage.jsx   # shared across all three role trees; "Calendar" in nav (renamed from "Events") — athlete home (`/`), see "Athlete calendar" below
+│   ├── CoachAssignmentsPage.jsx  # List/Grid toggle (Grid default for coaches; admin is List-only, no Grid button at all) — see "Coach assignment grid" below
 │   └── SuperAdminPage.jsx        # the entire standalone super-admin experience — see "Super admin" below
 │
 ├── components/                 # shared/reusable pieces used across pages
@@ -113,14 +112,20 @@ src/
 │   ├── WorkoutListItem.jsx       # dispatches WorkoutCard vs QuickNoteCard by workout.type
 │   ├── WorkoutCard.jsx / QuickNoteCard.jsx / QuickNoteForm.jsx / WorkoutComments.jsx
 │   ├── RunningSegmentsEditor.jsx / AssignedSegmentsEditor.jsx / SwimSegmentsEditor.jsx / AssignedSwimSegmentsEditor.jsx / BikeSegmentsEditor.jsx / AssignedBikeSegmentsEditor.jsx / TimeTextInput.jsx  # TimeTextInput deliberately has no `inputMode="numeric"` — that forces mobile's digit-only keypad, which has no colon key, making "6:45"-style values impossible to type
-│   ├── TargetVsActual.jsx        # renders assignment target vs. logged actual
+│   ├── TargetVsActual.jsx        # renders assignment target vs. logged actual, including both distances side by side (e.g. "Target: 10mi @ 6:24/mi" vs "Actual: 9mi — ..."), not just pace/time
 │   ├── ConversationList.jsx / ConversationView.jsx / GroupCreateForm.jsx / GroupManageControls.jsx  # ConversationList is the iOS-Messages-style avatar/preview/timestamp row list — used at every screen size (not just mobile, despite some `.mobile-inbox`/`.mobile-convo-*` CSS class names left over from when it was mobile-only), see "Messaging" below
-│   ├── EventEntryForm.jsx / AthleteChecklist.jsx / EventCard.jsx / EventForm.jsx / EventCalendar.jsx
+│   ├── EventEntryForm.jsx / AthleteChecklist.jsx / EventCard.jsx / EventForm.jsx
+│   ├── EventCalendar.jsx         # month calendar — team events (all roles) + an athlete's own assignments/logged workouts/mileage + the in-modal logging flow — see "Athlete calendar" below
+│   ├── LogWorkoutForm.jsx        # the actual create/edit workout form, extracted from LogWorkoutPage so EventCalendar can render it in a Modal with no page navigation at all — see "Athlete calendar" below
+│   ├── AssignmentForm.jsx        # sport-type-toggle + segment-editor + notes sub-form, extracted from CoachAssignmentsPage so AssignmentGrid's cell modal doesn't duplicate it — see "Coach assignment grid" below
+│   ├── AssignmentGrid.jsx        # coach-only weekly athlete×day grid — click-drag/ctrl-click selection + copy/paste — see "Coach assignment grid" below
+│   ├── Modal.jsx                 # generic overlay (backdrop-click/Escape to close) — this app's first; used by AssignmentGrid's cell editor and EventCalendar's logging flow, each styled separately rather than sharing the messaging feature's image lightbox CSS
 │   ├── WorkoutTypeIcon.jsx / RunnerSprite.jsx  # fixed sport-type icon; looping login/signup hero animation — see "Team color theming" / "Auth pages" below
 │   └── StatRow.jsx / MetricCardRow.jsx / Skeleton.jsx  # dashboard-stat tiles (plain vs. bold-colored) and loading-placeholder primitives
 │
 └── utils/                       # pure helpers, no Supabase calls
-    ├── format.js                 # date/time/pace formatting, plus getInitials()/formatConversationTimestamp() for the conversation list
+    ├── format.js                 # date/time/pace formatting, getInitials()/formatConversationTimestamp() for the conversation list, summarizeAssignment()/formatTargetPace()/sumAssignedDistanceMiles()/sumLoggedDistanceMiles() for the assignment grid and athlete calendar
+    ├── week.js                   # pure date-math (toDateStr/parseDateStr/startOfWeek/addDays/formatWeekRangeLabel) — genuinely shared, unlike the deliberately-separate per-sport segment editors
     ├── conversationReadState.js  # localStorage-based "last seen per conversation" for the unread dot — see "Messaging" below for why this is client-side, not a schema column
     ├── lineup.js                 # meet-lineup grouping/sorting logic
     └── lineupPdf.js               # PDF export (jspdf)
@@ -138,9 +143,9 @@ Every user has a `profiles` row with `role` = `pending | athlete | coach | admin
 - `isSuperAdmin` → an entirely separate branch (see "Super admin" below) — checked **before** the role gates, since a super admin has no `profiles` row at all and so `role` is always `null` for them
 - `role === 'pending'` or `null` → `PendingPage`, nothing else
 - `role === 'removed'` → `RemovedPage`, nothing else
-- `role === 'coach'` vs `'admin'` vs everything else (`athlete`) → **three separate `<Routes>` trees** defined inline in `App.jsx`, not a shared route set with permission checks. When adding a page, decide which tree(s) it belongs in and add the `<Route>` there (and to `NavBar.jsx`) — there's no central route config to update elsewhere. The `admin` tree reuses the same page components as `coach` (no route is admin-specific except omitting `/pending`) — each page hides its own write controls internally by checking `profile.role === 'coach'`.
+- `role === 'coach'` vs `'admin'` vs everything else (`athlete`) → **three separate `<Routes>` trees** defined inline in `App.jsx`, not a shared route set with permission checks. When adding a page, decide which tree(s) it belongs in and add the `<Route>` there (and to `NavBar.jsx`) — there's no central route config to update elsewhere. The `admin` tree reuses the same page components as `coach` — each page hides its own write controls internally by checking `profile.role === 'coach'` (e.g. RosterPage's pending-signups section only fetches/renders for a coach).
 
-A handful of pages (`WorkoutHistoryPage`, `EventsPage`/`EventDetailPage`, `MessagesPage`) are shared across all three trees and branch on `profile.role` internally instead of being duplicated.
+A handful of pages (`EventsPage`/`EventDetailPage`, `MessagesPage`) are shared across all three trees and branch on `profile.role` internally instead of being duplicated. `WorkoutHistoryPage` used to be one of these (an athlete's own `/history`) but isn't anymore — the athlete tree has no History or Assignments routes at all now (see "Athlete calendar" below); `WorkoutHistoryPage` is only reachable via `AthleteDetailPage` (coach/admin viewing one athlete's history through the roster).
 
 ### Multi-tenancy: teams
 
@@ -198,7 +203,7 @@ A "workout" is one row in `workouts` with `type` = `running | swim | bike | lift
 - `lifting` — child rows in `lifting_exercises`.
 - `note` — a "quick log" with no children, just `date` + `notes`; both athletes and coaches can create these (everything else under `workouts` is athlete-only to write). `src/components/WorkoutListItem.jsx` is the dispatcher that renders the right card (`WorkoutCard` vs `QuickNoteCard`) based on `type` — render workout lists through it rather than choosing the card component yourself.
 
-`assigned_workouts` (+ `assigned_running_segments` / `assigned_swim_segments` / `assigned_bike_segments` / `assigned_lifting_targets`) mirror this same shape as coach-assigned targets — `assigned_bike_segments` carries only a target time per segment, same as running/swim, since watts/cadence are actuals-only concepts an athlete logs, not something a coach assigns a target for; `workouts.assignment_id` links a logged workout back to the assignment it fulfills, and `TargetVsActual` renders the comparison.
+`assigned_workouts` (+ `assigned_running_segments` / `assigned_swim_segments` / `assigned_bike_segments` / `assigned_lifting_targets`) mirror this same shape as coach-assigned targets — `assigned_bike_segments` carries only a target time per segment, same as running/swim, since watts/cadence are actuals-only concepts an athlete logs, not something a coach assigns a target for; `workouts.assignment_id` links a logged workout back to the assignment it fulfills, and `TargetVsActual` renders the comparison (target and actual distance side by side, not just pace/time). The same distance math also powers the athlete calendar's day-cell mileage — see "Athlete calendar" below.
 
 `fetchRecentTeamFeed()` (the Team Logs home feed) excludes anyone with `role = 'removed'` via a query-level filter (`profiles!inner(...).neq('profiles.role', 'removed')`), not RLS — their logs are still fully intact and visible via Former Athletes → their detail page, just kept out of the active aggregate feed. See "Roster lifecycle" below.
 
@@ -208,7 +213,7 @@ Three different actions that look similar but do genuinely different things — 
 
 - **Remove** (`RosterPage`, coach only, active athlete → `role = 'removed'`) — `remove_athlete()` RPC. Their workout logs are preserved (never deleted, never altered) but excluded from the active Team Logs feed as described above. Their own messages in the team channel and any group chats are **permanently deleted** (other members' messages in those same conversations are untouched); any DM they had with a coach is **deleted entirely** (the `conversations` row itself, cascading to its messages/participants) rather than just hidden. The confirmation dialog states both consequences explicitly.
 - **Reinstate** (`FormerAthletesPage`, coach only, `'removed' → 'athlete'`) — a plain client-side `profiles` update, no RPC needed: `profiles_update_coach_only` already lets a coach set any role on any of their team's profiles, and the existing team-channel auto-join trigger fires on this exact transition and re-adds them for free. Their workout logs simply reappear in the feed (they were never removed from it in the database). Their deleted messages are **not** restored — that deletion was permanent by design.
-- **Reject** (`PendingApprovalsPage`, coach only, a `'pending'` signup that was never approved) — `reject_pending_profile()` **deletes the `auth.users` row outright** (`profiles.id` cascades automatically), not a soft-remove like the other two. This is deliberately different: a pending user can't have created anything worth archiving (RLS blocks all writes and the team-channel auto-join trigger never fires for `role = 'pending'`), and — the actual reason this matters — Supabase enforces email uniqueness at the `auth.users` level regardless of what `profiles.role` says, so soft-removing would permanently block that email from ever signing up again.
+- **Reject** (`RosterPage`'s pending-signups section, coach only, a `'pending'` signup that was never approved) — `reject_pending_profile()` **deletes the `auth.users` row outright** (`profiles.id` cascades automatically), not a soft-remove like the other two. This is deliberately different: a pending user can't have created anything worth archiving (RLS blocks all writes and the team-channel auto-join trigger never fires for `role = 'pending'`), and — the actual reason this matters — Supabase enforces email uniqueness at the `auth.users` level regardless of what `profiles.role` says, so soft-removing would permanently block that email from ever signing up again.
 
 ### Account self-service
 
@@ -256,11 +261,33 @@ Opt-in only, off by default — `AccountSettingsPage` has a toggle that must be 
 
 ### Events & calendar
 
-`EventsPage` defaults to the plain list view (`view` state, `'list' | 'calendar'`, toggled via a `.type-toggle` pair) — the month calendar (`EventCalendar.jsx`) is a supplement, not a replacement, and both read from the same `events` array fetched once by the page.
+The "Calendar" tab (renamed from "Events" — nav label and page `<h1>` changed; the route is still `/events`, plus `/` for athletes, see "Athlete calendar" below) defaults to the month calendar (`view` state, `'calendar' | 'list'`, toggled via a `.type-toggle` pair with Calendar first/left) — the flat list is the supplement now, not the default. Both views read from the same `events` array fetched once by the page.
 
 `EventCalendar`'s month grid (`buildMonthGrid()`) always renders a full 7-column grid for alignment, but leading/trailing days from adjacent months render as blank, non-interactive `<div>` placeholders (`calendar-cell-outside`) rather than showing that neighboring month's dates or events — only the selected month's own days are ever clickable or show a dot/event-name indicator. Month/year jump is via two `<select>` dropdowns (in addition to Prev/Next/Today); the year dropdown's option range is recomputed off whatever year is currently in view (not a fixed range off today), so it always contains a valid selection even after navigating far away.
 
 Editing an event happens **in place**: `EventsPage` owns all the form/editing state and bundles it into one `editing` object (`{ editingId, form, setForm, onSubmit, onCancel, saving, error }`) passed down through `EventCalendar` to `EventCard` — whichever `EventCard` instance matches `editing.editingId` renders the shared `EventForm` component in place of its normal display, instead of a separate form opening elsewhere on the page. This works identically whether the card is in the plain list or inside the calendar's day-detail panel, since both render through the same `EventCard`. Creating a new event is unrelated to this — it still opens `EventForm` in a fixed spot at the top of the page (`formOpen` state), since only editing was asked to happen inline.
+
+### Coach assignment grid
+
+`CoachAssignmentsPage` defaults to Grid for coaches (`view` state, `'grid' | 'list'`, Grid first/left; admin never sees the Grid button at all — `canCreate` gates it — so admin's effective view is always List regardless of the default). The flat List view (multi-athlete-select + single date + `AssignmentForm`, fanning out one `createAssignment()` call per selected athlete) is unchanged from before the grid existed.
+
+`AssignmentGrid.jsx` — athletes × Mon-Sun, one week at a time, sticky header row + sticky first column inside an `overflow: auto` wrapper (this app's first two-axis-sticky table). Fetches a rolling 14-day window (`[weekStart-7d, weekStart+6d]`) via `fetchAssignmentsForCoach({startDate, endDate})` on every week-nav — the extra week behind is what lets "Copy previous week" work without navigating there first.
+
+**Editing/deleting an assignment**: the child segment/target tables (`assigned_running_segments` etc.) only have SELECT + INSERT RLS policies, never UPDATE/DELETE — so "edit" is `deleteAssignment(id)` (the coach-only DELETE policy on `assigned_workouts` already existed; children `ON DELETE CASCADE`) followed by a normal `createAssignment()`, never an in-place update. `assignmentToFormPayload()` (`src/lib/assignments.js`) converts a fetched assignment's nested snake_case rows back into the camelCase shape `AssignmentForm`/`createAssignment` expect, for both pre-filling an edit and building a copy/paste clipboard entry.
+
+**Known trade-off, not a bug**: editing or paste-overwriting an assignment the athlete has already logged against unlinks that log (`workouts.assignment_id` is `ON DELETE SET NULL`, and there's no coach-write path to `workouts` to relink it afterward — adding one would be a new RPC). The athlete's log itself is preserved; only the target-vs-actual link and completed status are lost. Both the cell modal and the paste-overwrite confirmation show an explicit, stronger warning for this specific case rather than doing it silently.
+
+**Copy/paste**: click-drag (`mousedown`+`mouseenter`+document-level `mouseup`), ctrl/cmd-click (additive, non-contiguous), or shift-click (rectangle from the last anchor) builds a `Set<"athleteId|dateStr">` selection. A touch-only "Select mode" toggle makes taps additive instead of opening the cell modal, since there's no drag-select equivalent on touch. The clipboard is `{ athleteOffset, dayOffset, payload }[]`, relative to the selection's anchor at copy time — a selected cell with no assignment contributes nothing. Paste has two modes depending on clipboard size: **1 cell → broadcast** the same payload to every cell in the new target selection (covers "same day, different athletes" and "same athlete, different days" as one rule); **>1 cells → anchor mode**, ignoring the target selection's shape entirely and laying the clipboard's relative offsets out from just its anchor point (covers row-copy and full grid-to-grid paste; offsets landing outside the loaded roster or the visible week are silently dropped, never wrapped/clamped). "Copy previous week" is a one-click preset through this exact same path — a synthetic clipboard of the whole previous week anchored at the current week's first athlete row + Monday — not separate logic. Paste execution runs through a small local `mapWithConcurrency` (concurrency 5) rather than one unbounded `Promise.all` or slow sequential awaits, since a full grid-to-grid paste can be up to 50 athletes × 7 days; after the batch settles it just refetches the 14-day window rather than hand-patching local state.
+
+### Athlete calendar: logging, assignments, and mileage
+
+Calendar is the athlete's home (`/`) — `EventsPage`'s athlete branch additionally fetches `fetchAssignmentsForAthlete()` and *all* of `fetchWorkouts({userId})` (unfiltered by date), then passes `assignments`/`workoutByAssignment`/`workoutsByDate`/`canLog={true}` to `EventCalendar`. Coach/admin pass none of this, and `EventCalendar` behaves exactly as it did before any of this existed.
+
+**No standalone Log Workout / History / Assignments tabs for athletes** — all three were folded into Calendar. `LogWorkoutPage` still exists at `/log` and `/edit/:workoutId` (not nav-linked, kept only as a direct-URL fallback) but is now a thin wrapper around `LogWorkoutForm`, which takes `workoutId`/`initialAssignmentId`/`initialDate` as plain props instead of reading route params/query string. `EventCalendar` opens `LogWorkoutForm` directly in a `Modal` from the day panel — no navigation at all, so logging/editing never leaves the calendar; `onSaved` closes the modal and calls `onWorkoutSaved` (= `EventsPage`'s `load()`) to refetch. `AthleteAssignmentsPage` was deleted outright (nothing else referenced it), not just unlinked, since the calendar day panel now fully covers what it did.
+
+**Day panel, for an athlete**: every day is clickable, not just ones with events/assignments (`disabled={!canLog && !hasEvents && !hasAssignment}`), since logging isn't gated on having anything assigned. The log/edit button lives *inside* whichever card is showing that day's info (the assignment card, or a plain workout card when there's a log but no assignment) rather than floating below the list — only a genuinely empty day (nothing to attach it to) gets a bare standalone button. Button label/target: an existing log for the day → "Edit workout"; else an assignment exists → "Log this workout" (prefills type/segments/targets *and* the date — a pre-existing gap where an assignment's date was never actually applied to the log is fixed as part of this); else → "Log a workout" (blank, just the tapped date).
+
+**Mileage on day cells** (`dayMiles()` in `EventCalendar.jsx`): running/swim/bike are all converted down to one miles figure for now, rather than each sport's own natural unit, via `sumLoggedDistanceMiles()`/`sumAssignedDistanceMiles()` (`src/utils/format.js`) — running's logged total already lives in `workouts.total_distance` (miles, populated by `LogWorkoutForm`); swim/bike have no such column, so their segments are summed the same way assigned-target segments are. Actual logged mileage always wins over the assigned target the moment a distance-type log exists for the day, whether or not it fulfills an assignment — a day logged with no assignment at all still shows its mileage. Styled muted-gray for "assigned, not yet logged" vs. bold and sport-colored (`--running`/`--swim`/`--bike`) for "actually logged", echoing the existing pending-vs-complete dot convention.
 
 ### Auth pages
 
