@@ -602,6 +602,12 @@ label {
 
 /* --- Team logs feed: date/athlete filter --- */
 
+.feed-date-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .feed-view-heading {
   font-size: 1.05rem;
   border-bottom: 1px solid var(--border);

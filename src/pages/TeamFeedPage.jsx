@@ -22,9 +22,8 @@ export default function TeamFeedPage() {
   const { showToast } = useToast()
   const todayStr = useMemo(() => toDateStr(new Date()), [])
 
-  // Top-60 recent feed — only powers the metrics row and the "select by
-  // date" dropdown's list of dates (recent activity is what's worth
-  // offering there); it's never what's rendered as the main list itself.
+  // Top-60 recent feed — only powers the metrics row; it's never what's
+  // rendered as the main list itself.
   const [recentWorkouts, setRecentWorkouts] = useState([])
   const [events, setEvents] = useState([])
   const [athletes, setAthletes] = useState([])
@@ -68,14 +67,6 @@ export default function TeamFeedPage() {
 
   useEffect(refreshView, [filterMode, selectedDate, selectedAthleteId])
 
-  // Every date with recent activity, plus today even if nothing's been
-  // logged yet — so the dropdown's default selection always has an option.
-  const dateOptions = useMemo(() => {
-    const dates = new Set([todayStr])
-    for (const w of recentWorkouts) dates.add(w.date)
-    return Array.from(dates).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
-  }, [recentWorkouts, todayStr])
-
   const metrics = useMemo(() => {
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
@@ -98,6 +89,11 @@ export default function TeamFeedPage() {
   function handleDateChange(e) {
     setFilterMode('date')
     setSelectedDate(e.target.value)
+  }
+
+  function jumpToToday() {
+    setFilterMode('date')
+    setSelectedDate(todayStr)
   }
 
   function handleAthleteChange(e) {
@@ -160,13 +156,14 @@ export default function TeamFeedPage() {
           <div className="filter-bar">
             <label>
               Select by date
-              <select value={selectedDate} onChange={handleDateChange}>
-                {dateOptions.map((date) => (
-                  <option key={date} value={date}>
-                    {date === todayStr ? 'Today' : formatDateHeading(date)}
-                  </option>
-                ))}
-              </select>
+              <span className="feed-date-picker">
+                <input type="date" value={selectedDate} onChange={handleDateChange} />
+                {selectedDate !== todayStr && (
+                  <button type="button" className="link-button" onClick={jumpToToday}>
+                    Today
+                  </button>
+                )}
+              </span>
             </label>
             <label>
               Select by athlete
