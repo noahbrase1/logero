@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   assignmentToFormPayload,
   createAssignment,
@@ -44,6 +44,7 @@ async function mapWithConcurrency(items, concurrency, worker) {
 // clipboard + anchor through the exact same path, not separate logic).
 export default function AssignmentGrid({ athletes, coachId }) {
   const { showToast } = useToast()
+  const sectionRef = useRef(null)
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
   const [assignmentsByKey, setAssignmentsByKey] = useState(new Map())
   const [loading, setLoading] = useState(true)
@@ -109,6 +110,21 @@ export default function AssignmentGrid({ athletes, coachId }) {
     document.addEventListener('mouseup', handleMouseUp)
     return () => document.removeEventListener('mouseup', handleMouseUp)
   }, [])
+
+  // Clicking anywhere outside the grid (its toolbar/table/modals are all
+  // still "inside" via sectionRef) clears the current cell selection —
+  // otherwise there's no way to deselect once cells are click-dragged or
+  // ctrl-clicked into a selection short of picking a new single cell.
+  useEffect(() => {
+    function handleDocumentClick(e) {
+      if (selectionOrder.length === 0) return
+      if (sectionRef.current && !sectionRef.current.contains(e.target)) {
+        setSelectionOrder([])
+      }
+    }
+    document.addEventListener('click', handleDocumentClick)
+    return () => document.removeEventListener('click', handleDocumentClick)
+  }, [selectionOrder])
 
   useEffect(() => {
     function handleKeyDown(e) {
@@ -414,7 +430,7 @@ export default function AssignmentGrid({ athletes, coachId }) {
   const modalAthleteName = modalCell ? athletes.find((a) => a.id === modalCell.athleteId)?.name || 'Athlete' : ''
 
   return (
-    <div className="assignment-grid-section">
+    <div className="assignment-grid-section" ref={sectionRef}>
       <div className="assignment-grid-toolbar">
         <div className="calendar-nav">
           <button type="button" className="link-button" onClick={() => setWeekStart((d) => addDays(d, -7))} aria-label="Previous week">
