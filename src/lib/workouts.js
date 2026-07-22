@@ -389,6 +389,24 @@ export async function fetchRecentTeamFeed(limit = 20) {
   return data
 }
 
+// Every team member's logs for one specific date (Team Logs page's "select
+// by date" filter) — same team-wide visibility and removed-athlete
+// exclusion as fetchRecentTeamFeed, just filtered by date instead of capped
+// by count, so a date with a lot of activity is never accidentally
+// truncated by the recent-feed's limit.
+export async function fetchTeamWorkoutsByDate(dateStr) {
+  const { data, error } = await supabase
+    .from('workouts')
+    .select(`${WORKOUT_SELECT}, profiles!inner(name, role)`)
+    .eq('date', dateStr)
+    .neq('profiles.role', 'removed')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  data?.forEach(sortWorkoutNested)
+  return data
+}
+
 // ---------------------------------------------------------------------------
 // Profiles / roster / approvals
 // ---------------------------------------------------------------------------

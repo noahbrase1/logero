@@ -600,100 +600,13 @@ label {
   padding: var(--space-8) var(--space-6);
 }
 
-/* --- Team logs feed: date nav + grouped sections --- */
+/* --- Team logs feed: date/athlete filter --- */
 
-.feed-page {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
-  display: flex;
-  align-items: flex-start;
-  gap: 2rem;
-}
-
-.feed-date-nav {
-  width: 220px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 85px;
-  max-height: calc(100vh - 108px);
-  overflow-y: auto;
-}
-
-.feed-date-nav-heading {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-muted);
-  margin: 0 0 0.6rem;
-}
-
-.feed-date-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.feed-date-link {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-  background: none;
-  color: var(--text-muted);
-  padding: 0.4rem 0.6rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  text-align: left;
-}
-
-.feed-date-link:hover:not(.active) {
-  background: var(--accent-bg);
-  color: var(--text);
-}
-
-.feed-date-link.active {
-  background: var(--accent-bg);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.feed-date-count {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.feed-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.feed-date-group {
-  margin-bottom: 2rem;
-  scroll-margin-top: 85px;
-}
-
-.feed-date-heading {
+.feed-view-heading {
   font-size: 1.05rem;
   border-bottom: 1px solid var(--border);
   padding-bottom: 0.5rem;
   margin-bottom: 1rem;
-}
-
-@media (max-width: 800px) {
-  .feed-page {
-    flex-direction: column;
-  }
-
-  .feed-date-nav {
-    width: 100%;
-    position: static;
-    max-height: none;
-  }
 }
 
 .page-subtitle {
@@ -2814,10 +2727,6 @@ button.link-button.danger {
 
 @media (max-width: 640px) {
   .page {
-    padding: var(--space-5) var(--space-4);
-  }
-
-  .feed-page {
     padding: var(--space-5) var(--space-4);
   }
 
