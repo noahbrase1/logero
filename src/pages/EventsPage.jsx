@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { createEvent, deleteEvent, fetchEvents, updateEvent } from '../lib/events'
 import { fetchAssignmentsForAthlete } from '../lib/assignments'
-import { fetchWorkouts } from '../lib/workouts'
+import { fetchApprovedAthletes, fetchWorkouts } from '../lib/workouts'
 import { SkeletonList } from '../components/Skeleton'
 import { useToast } from '../context/ToastContext'
 import EventCard from '../components/EventCard'
@@ -15,13 +15,17 @@ export default function EventsPage() {
   const { user, profile } = useAuth()
   const { showToast } = useToast()
   const isCoach = profile?.role === 'coach'
+  const isAdmin = profile?.role === 'admin'
   const isAthlete = profile?.role === 'athlete'
 
   const [events, setEvents] = useState([])
+  const [athletes, setAthletes] = useState([])
+  const [selectedAthleteId, setSelectedAthleteId] = useState('')
   const [assignments, setAssignments] = useState([])
   const [workoutByAssignment, setWorkoutByAssignment] = useState({})
   const [workoutsByDate, setWorkoutsByDate] = useState({})
   const [loading, setLoading] = useState(true)
+  const [athleteDataLoading, setAthleteDataLoading] = useState(false)
   const [error, setError] = useState('')
   const [view, setView] = useState('calendar')
 
@@ -30,36 +34,58 @@ export default function EventsPage() {
   const [form, setForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
 
-  // Athlete-only: their own assignments + logged workouts, so the calendar
-  // can show assigned workouts alongside team events, and so logging/editing
-  // (via EventCalendar's in-modal LogWorkoutForm) has what it needs to
-  // detect an existing log per day. Coach/admin skip this entirely and
-  // EventCalendar behaves exactly as before for them.
-  function load() {
+  // An athlete always views their own calendar; a coach/admin views the
+  // team calendar by default but can pick any athlete from the dropdown
+  // below to see that athlete's own calendar instead (read-only for them —
+  // canLog stays athlete-only, see EventCalendar's canLog prop below).
+  const targetUserId = isAthlete ? user.id : selectedAthleteId || null
+
+  // Events (+ the athlete picker's roster, for coach/admin) load once on
+  // mount — unrelated to which athlete's assignments/logs are shown below.
+  function loadBase() {
     setLoading(true)
-    const requests = isAthlete
-      ? [fetchEvents(), fetchAssignmentsForAthlete(user.id), fetchWorkouts({ userId: user.id })]
-      : [fetchEvents()]
+    const requests = [fetchEvents(), isCoach || isAdmin ? fetchApprovedAthletes() : Promise.resolve([])]
     Promise.all(requests)
-      .then(([eventData, assignmentData, workouts]) => {
+      .then(([eventData, athleteData]) => {
         setEvents(eventData)
-        if (isAthlete) {
-          setAssignments(assignmentData)
-          const map = {}
-          const byDate = {}
-          workouts.forEach((w) => {
-            if (w.assignment_id) map[w.assignment_id] = w
-            byDate[w.date] = w
-          })
-          setWorkoutByAssignment(map)
-          setWorkoutsByDate(byDate)
-        }
+        setAthletes(athleteData)
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [])
+  useEffect(loadBase, [])
+
+  // Assignments + logged workouts for whichever user's calendar is being
+  // shown (the athlete themself, or a coach/admin's selected athlete), so
+  // the calendar can show assigned workouts alongside team events, and so
+  // logging/editing (via EventCalendar's in-modal LogWorkoutForm, athlete
+  // view only) has what it needs to detect an existing log per day.
+  function loadAthleteData() {
+    if (!targetUserId) {
+      setAssignments([])
+      setWorkoutByAssignment({})
+      setWorkoutsByDate({})
+      return
+    }
+    setAthleteDataLoading(true)
+    Promise.all([fetchAssignmentsForAthlete(targetUserId), fetchWorkouts({ userId: targetUserId })])
+      .then(([assignmentData, workouts]) => {
+        setAssignments(assignmentData)
+        const map = {}
+        const byDate = {}
+        workouts.forEach((w) => {
+          if (w.assignment_id) map[w.assignment_id] = w
+          byDate[w.date] = w
+        })
+        setWorkoutByAssignment(map)
+        setWorkoutsByDate(byDate)
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setAthleteDataLoading(false))
+  }
+
+  useEffect(loadAthleteData, [targetUserId])
 
   const today = new Date().toISOString().slice(0, 10)
   const upcoming = events.filter((e) => e.date >= today)
@@ -100,7 +126,7 @@ export default function EventsPage() {
       showToast('Event created')
       setFormOpen(false)
       setForm(emptyForm())
-      load()
+      loadBase()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -119,7 +145,7 @@ export default function EventsPage() {
       await updateEvent(editingId, form)
       showToast('Event updated')
       cancelEdit()
-      load()
+      loadBase()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -184,19 +210,46 @@ export default function EventsPage() {
             </button>
           </div>
 
+          {view === 'calendar' && (isCoach || isAdmin) && (
+            <div className="filter-bar">
+              <label>
+                View athlete's calendar
+                <select value={selectedAthleteId} onChange={(e) => setSelectedAthleteId(e.target.value)}>
+                  <option value="">Team calendar</option>
+                  {athletes.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name || 'Unnamed athlete'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
+          {view === 'calendar' && selectedAthleteId && (
+            <p className="form-info">
+              Viewing {athletes.find((a) => a.id === selectedAthleteId)?.name || 'this athlete'}'s calendar — read-only.
+            </p>
+          )}
+
           {view === 'calendar' ? (
-            <EventCalendar
-              events={events}
-              isCoach={isCoach}
-              onEdit={startEdit}
-              onDelete={handleDelete}
-              editing={editingState}
-              assignments={assignments}
-              workoutByAssignment={workoutByAssignment}
-              canLog={isAthlete}
-              workoutsByDate={workoutsByDate}
-              onWorkoutSaved={load}
-            />
+            athleteDataLoading ? (
+              <SkeletonList count={3} />
+            ) : (
+              <EventCalendar
+                events={events}
+                isCoach={isCoach}
+                onEdit={startEdit}
+                onDelete={handleDelete}
+                editing={editingState}
+                assignments={assignments}
+                workoutByAssignment={workoutByAssignment}
+                canLog={isAthlete}
+                showAthleteData={Boolean(targetUserId)}
+                workoutsByDate={workoutsByDate}
+                onWorkoutSaved={loadAthleteData}
+              />
+            )
           ) : (
             <>
               <h2 className="events-section-heading">Upcoming</h2>
