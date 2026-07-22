@@ -870,6 +870,23 @@ label {
   margin-bottom: 0.5rem;
 }
 
+.workout-headline {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.workout-headline-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
+.workout-headline-prescribed {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
 .stat {
   display: flex;
   flex-direction: column;

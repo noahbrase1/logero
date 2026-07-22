@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
-  calculatePace,
+  assignedWorkoutHeadline,
   formatDate,
   formatDistanceValue,
-  roundMiles,
+  formatTargetPace,
+  hmsToSeconds,
+  loggedWorkoutHeadline,
   secondsToClock,
   summarizeBikeReps,
   summarizeReps,
@@ -14,6 +16,15 @@ import {
 import WorkoutComments from './WorkoutComments'
 import TargetVsActual from './TargetVsActual'
 import WorkoutTypeIcon from './WorkoutTypeIcon'
+
+// assigned_workouts' target-segments field, per workout type — running/swim/
+// bike only (lifting keeps its existing TargetVsActual comparison instead,
+// see the isLifting branch below).
+const ASSIGNED_SEGMENTS_FIELD_BY_TYPE = {
+  running: 'assigned_running_segments',
+  swim: 'assigned_swim_segments',
+  bike: 'assigned_bike_segments',
+}
 
 export default function WorkoutCard({ workout, showAthleteName = false }) {
   const { user, profile } = useAuth()
@@ -47,94 +58,99 @@ export default function WorkoutCard({ workout, showAthleteName = false }) {
       </div>
 
       {isRunning ? (
-        <div className="workout-stats">
-          <Stat label="Distance" value={workout.total_distance ? `${roundMiles(workout.total_distance)} mi` : '—'} />
-          <Stat label="Duration" value={workout.total_duration_seconds ? secondsToClock(workout.total_duration_seconds) : '—'} />
-          <Stat label="Pace" value={calculatePace(workout.total_distance, workout.total_duration_seconds) || '—'} />
-          <Stat label="Effort" value={workout.perceived_effort ? `${workout.perceived_effort}/10` : '—'} />
-        </div>
+        <ActualAndPrescribed workout={workout} segments={workout.running_segments} SegmentComponent={SegmentSummary} />
       ) : isSwim ? (
-        <div className="workout-stats">
-          <Stat label="Segments" value={workout.swim_segments?.length ?? 0} />
-          <Stat label="Effort" value={workout.perceived_effort ? `${workout.perceived_effort}/10` : '—'} />
-        </div>
+        <ActualAndPrescribed workout={workout} segments={workout.swim_segments} SegmentComponent={SwimSegmentSummary} />
       ) : isBike ? (
-        <div className="workout-stats">
-          <Stat label="Segments" value={workout.bike_segments?.length ?? 0} />
-          <Stat label="Effort" value={workout.perceived_effort ? `${workout.perceived_effort}/10` : '—'} />
-        </div>
+        <ActualAndPrescribed workout={workout} segments={workout.bike_segments} SegmentComponent={BikeSegmentSummary} />
       ) : (
-        <div className="workout-stats">
-          <Stat label="Exercises" value={workout.lifting_exercises?.length ?? 0} />
-          <Stat label="Effort" value={workout.perceived_effort ? `${workout.perceived_effort}/10` : '—'} />
-        </div>
-      )}
-
-      {isRunning && workout.running_segments?.length > 0 && (
-        <details className="workout-details" open>
-          <summary>Segments ({workout.running_segments.length})</summary>
-          <div className="segment-list">
-            {workout.running_segments.map((seg) => (
-              <SegmentSummary key={seg.id} segment={seg} />
-            ))}
+        <>
+          <div className="workout-stats">
+            <Stat label="Exercises" value={workout.lifting_exercises?.length ?? 0} />
+            <Stat label="Effort" value={workout.perceived_effort ? `${workout.perceived_effort}/10` : '—'} />
           </div>
-        </details>
-      )}
 
-      {isSwim && workout.swim_segments?.length > 0 && (
-        <details className="workout-details" open>
-          <summary>Segments ({workout.swim_segments.length})</summary>
-          <div className="segment-list">
-            {workout.swim_segments.map((seg) => (
-              <SwimSegmentSummary key={seg.id} segment={seg} />
-            ))}
-          </div>
-        </details>
-      )}
-
-      {isBike && workout.bike_segments?.length > 0 && (
-        <details className="workout-details" open>
-          <summary>Segments ({workout.bike_segments.length})</summary>
-          <div className="segment-list">
-            {workout.bike_segments.map((seg) => (
-              <BikeSegmentSummary key={seg.id} segment={seg} />
-            ))}
-          </div>
-        </details>
-      )}
-
-      {isLifting && workout.lifting_exercises?.length > 0 && (
-        <details className="workout-details">
-          <summary>Exercises ({workout.lifting_exercises.length})</summary>
-          <table className="detail-table">
-            <thead>
-              <tr>
-                <th>Exercise</th>
-                <th>Sets</th>
-                <th>Reps</th>
-                <th>Weight</th>
-              </tr>
-            </thead>
-            <tbody>
-              {workout.lifting_exercises.map((ex) => (
-                <tr key={ex.id}>
-                  <td>{ex.exercise_name}</td>
-                  <td>{ex.sets ?? '—'}</td>
-                  <td>{ex.reps ?? '—'}</td>
-                  <td>{ex.weight ? `${ex.weight} lb` : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </details>
+          {workout.lifting_exercises?.length > 0 && (
+            <details className="workout-details">
+              <summary>Exercises ({workout.lifting_exercises.length})</summary>
+              <table className="detail-table">
+                <thead>
+                  <tr>
+                    <th>Exercise</th>
+                    <th>Sets</th>
+                    <th>Reps</th>
+                    <th>Weight</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workout.lifting_exercises.map((ex) => (
+                    <tr key={ex.id}>
+                      <td>{ex.exercise_name}</td>
+                      <td>{ex.sets ?? '—'}</td>
+                      <td>{ex.reps ?? '—'}</td>
+                      <td>{ex.weight ? `${ex.weight} lb` : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          )}
+        </>
       )}
 
       {workout.notes && <p className="workout-notes">{workout.notes}</p>}
 
-      {workout.assigned_workouts && <TargetVsActual assignment={workout.assigned_workouts} workout={workout} />}
+      {isLifting && workout.assigned_workouts && <TargetVsActual assignment={workout.assigned_workouts} workout={workout} />}
 
       <WorkoutComments workoutId={workout.id} />
     </article>
+  )
+}
+
+// Shared body for running/swim/bike: a bold top-line headline of what the
+// athlete actually did (distance, time, average pace where meaningful),
+// their recorded splits below it in smaller type, and — only when this log
+// fulfills an assignment — the coach's prescribed workout directly below
+// that, in the same two-tier shape (headline, then splits), rather than a
+// per-segment target-vs-actual comparison.
+function ActualAndPrescribed({ workout, segments, SegmentComponent }) {
+  const loggedSegments = segments || []
+  const headline = loggedWorkoutHeadline(workout)
+
+  const assignment = workout.assigned_workouts
+  const targetField = ASSIGNED_SEGMENTS_FIELD_BY_TYPE[workout.type]
+  const targetSegments = assignment ? assignment[targetField] || [] : []
+  const prescribedHeadline = assignment ? assignedWorkoutHeadline(assignment) : []
+
+  return (
+    <>
+      <div className="workout-headline">
+        {headline.length > 0 ? headline.join(' · ') : 'No distance or time recorded'}
+      </div>
+      {workout.perceived_effort && <div className="workout-headline-meta">Effort {workout.perceived_effort}/10</div>}
+
+      {loggedSegments.length > 0 && (
+        <div className="segment-list">
+          {loggedSegments.map((seg) => (
+            <SegmentComponent key={seg.id} segment={seg} />
+          ))}
+        </div>
+      )}
+
+      {targetSegments.length > 0 && (
+        <div className="target-actual">
+          <div className="target-actual-heading">Prescribed</div>
+          <div className="workout-headline workout-headline-prescribed">
+            {prescribedHeadline.length > 0 ? prescribedHeadline.join(' · ') : '—'}
+          </div>
+          <div className="segment-list">
+            {targetSegments.map((seg) => (
+              <PrescribedSegmentSummary key={seg.id} seg={seg} type={workout.type} />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -198,6 +214,35 @@ function BikeSegmentSummary({ segment }) {
         {timesText}
         {extras.length > 0 && `, ${extras.join(', ')}`}
       </div>
+    </div>
+  )
+}
+
+// The coach's target for one segment — same title shape as the actual
+// SegmentSummary components above (label + reps× + distance+unit), so
+// actual and prescribed splits read as visually parallel lists. Running
+// gets a pace (formatTargetPace already picks continuous-vs-interval
+// phrasing); swim/bike show the raw target time instead, same as
+// TargetVsActual's existing swim/bike target rows.
+function PrescribedSegmentSummary({ seg, type }) {
+  const reps = seg.reps || 1
+  const targetSeconds = hmsToSeconds({
+    hours: seg.target_time_hours,
+    minutes: seg.target_time_minutes,
+    seconds: seg.target_time_seconds,
+  })
+  const title = `${seg.label ? `${seg.label}: ` : ''}${reps > 1 ? `${reps} × ` : ''}${formatDistanceValue(seg.distance_value, seg.distance_unit)} ${unitAbbrev(seg.distance_unit)}`
+  const detail =
+    type === 'running'
+      ? formatTargetPace(seg.distance_value, seg.distance_unit, reps, targetSeconds)
+      : targetSeconds > 0
+        ? `${secondsToClock(targetSeconds)}${reps > 1 ? '/rep' : ''}`
+        : null
+
+  return (
+    <div className="segment-summary">
+      <div className="segment-summary-title">{title}</div>
+      <div className="segment-summary-detail">{detail || '—'}</div>
     </div>
   )
 }

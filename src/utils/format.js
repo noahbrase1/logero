@@ -305,6 +305,85 @@ export function loggedDistanceSummary(workout) {
   return miles > 0 ? { value: miles, unit: 'miles' } : null
 }
 
+const LOGGED_REPS_FIELD_BY_TYPE = {
+  running: 'running_segment_reps',
+  swim: 'swim_segment_reps',
+  bike: 'bike_segment_reps',
+}
+
+// Total logged time across every rep of every segment in a running/swim/
+// bike workout — running already has a precomputed total_duration_seconds
+// (the athlete's own total, which may include rest/cooldown time the
+// segments don't capture) and that's used in preference to re-summing the
+// segments when present. 0 for lifting/note, or a distance-type workout
+// logged with no rep times at all.
+export function sumLoggedTimeSeconds(workout) {
+  if (!workout) return 0
+  if (workout.type === 'running' && workout.total_duration_seconds) return workout.total_duration_seconds
+  const field = LOGGED_SEGMENTS_FIELD_BY_TYPE[workout.type]
+  const repsField = LOGGED_REPS_FIELD_BY_TYPE[workout.type]
+  if (!field || !repsField) return 0
+  return (workout[field] || []).reduce((total, seg) => {
+    const repSeconds = (seg[repsField] || []).reduce(
+      (t, r) => t + hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds }),
+      0
+    )
+    return total + repSeconds
+  }, 0)
+}
+
+// Total *target* time across a running/swim/bike assignment's segments —
+// each target segment stores one target time meant per-rep, so it's
+// multiplied by that segment's rep count (unlike logged reps, which already
+// have one row per rep). 0 for lifting/note.
+export function sumAssignedTimeSeconds(assignment) {
+  const field = ASSIGNED_SEGMENTS_FIELD_BY_TYPE[assignment?.type]
+  if (!field) return 0
+  return (assignment[field] || []).reduce((total, seg) => {
+    const perRep = hmsToSeconds({
+      hours: seg.target_time_hours,
+      minutes: seg.target_time_minutes,
+      seconds: seg.target_time_seconds,
+    })
+    return total + perRep * (seg.reps || 1)
+  }, 0)
+}
+
+// The "what the athlete actually did" headline for a logged running/swim/
+// bike workout — an ordered list of strings (distance, time, average pace)
+// meant to be joined with " · " by the caller. Average pace is only
+// included for running: swim/bike don't have a single meaningful overall
+// pace figure in this app (see WorkoutCard's existing per-segment summary
+// comments), so their headline is just distance + time.
+export function loggedWorkoutHeadline(workout) {
+  const distance = loggedDistanceSummary(workout)
+  const seconds = sumLoggedTimeSeconds(workout)
+  const parts = []
+  if (distance) parts.push(`${formatDistanceValue(distance.value, distance.unit)}${unitAbbrev(distance.unit)}`)
+  if (seconds > 0) parts.push(secondsToClock(seconds))
+  if (workout?.type === 'running' && distance && seconds > 0) {
+    const pace = calculatePace(sumLoggedDistanceMiles(workout), seconds)
+    if (pace) parts.push(`${pace} avg`)
+  }
+  return parts
+}
+
+// The "what the coach prescribed" headline for a running/swim/bike
+// assignment — same shape as loggedWorkoutHeadline, computed from target
+// segments instead of logged ones.
+export function assignedWorkoutHeadline(assignment) {
+  const distance = assignedDistanceSummary(assignment)
+  const seconds = sumAssignedTimeSeconds(assignment)
+  const parts = []
+  if (distance) parts.push(`${formatDistanceValue(distance.value, distance.unit)}${unitAbbrev(distance.unit)}`)
+  if (seconds > 0) parts.push(secondsToClock(seconds))
+  if (assignment?.type === 'running' && distance && seconds > 0) {
+    const pace = calculatePace(sumAssignedDistanceMiles(assignment), seconds)
+    if (pace) parts.push(`${pace} avg`)
+  }
+  return parts
+}
+
 // Compact one-line summary of an assigned_workouts row's target segments —
 // e.g. "3×1mi @ 6:50" — shared by CoachAssignmentsPage's list rows and the
 // assignment grid's cells (previously duplicated per-type inline in
