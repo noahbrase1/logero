@@ -115,7 +115,7 @@ export default function SignUpPage() {
   return (
     <div className="auth-page auth-page-animated">
       <div className="auth-hero">
-        <RunnerSprite />
+        <RunnerSprite animate={false} />
       </div>
       <form className="auth-card auth-card-dark" onSubmit={handleSubmit}>
         <h1>Sign up</h1>
