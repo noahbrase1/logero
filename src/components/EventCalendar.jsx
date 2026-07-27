@@ -12,6 +12,7 @@ import { toDateStr } from '../utils/week'
 import EventCard from './EventCard'
 import TargetVsActual from './TargetVsActual'
 import LogWorkoutForm from './LogWorkoutForm'
+import CalendarAssignmentModal from './CalendarAssignmentModal'
 import Modal from './Modal'
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -93,6 +94,14 @@ function dayDistance(dateStr, dayAssignments, workoutsByDate) {
 // viewing an athlete's calendar read-only (AthleteCalendarPage) can pass
 // `canLog={false} showAthleteData={true}` — sees exactly what the athlete
 // sees, just without any log/edit action rendered.
+//
+// `canManageAssignments` (coach-only, EventsPage's athlete-picker view) adds
+// a parallel "New/Edit assignment" action that opens CalendarAssignmentModal
+// instead of LogWorkoutForm — creating/editing the coach's assigned target
+// for `targetAthleteId`, not logging on their behalf. `otherAthletes` feeds
+// that modal's "also assign to…" broadcast list; `coachId` is who the
+// assignment gets attributed to; `onAssignmentSaved` tells the parent to
+// refetch, same role as `onWorkoutSaved`.
 export default function EventCalendar({
   events,
   isCoach,
@@ -105,11 +114,18 @@ export default function EventCalendar({
   showAthleteData = canLog,
   workoutsByDate = {},
   onWorkoutSaved,
+  canManageAssignments = false,
+  coachId,
+  targetAthleteId,
+  targetAthleteName,
+  otherAthletes = [],
+  onAssignmentSaved,
 }) {
   const today = new Date()
   const [viewDate, setViewDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))
   const [selectedDate, setSelectedDate] = useState(null)
   const [logModal, setLogModal] = useState(null) // { workoutId } | { initialAssignmentId, initialDate } | { initialDate }
+  const [assignmentModal, setAssignmentModal] = useState(null) // { existing: assignment|null }
 
   const year = viewDate.getFullYear()
   const month = viewDate.getMonth()
@@ -195,6 +211,19 @@ export default function EventCalendar({
   function handleWorkoutSaved() {
     setLogModal(null)
     onWorkoutSaved?.()
+  }
+
+  function openAssignmentModal(existing) {
+    setAssignmentModal({ existing: existing || null })
+  }
+
+  function closeAssignmentModal() {
+    setAssignmentModal(null)
+  }
+
+  function handleAssignmentSaved() {
+    setAssignmentModal(null)
+    onAssignmentSaved?.()
   }
 
   return (
@@ -349,6 +378,11 @@ export default function EventCalendar({
                       </button>
                     )
                   )}
+                  {canManageAssignments && i === 0 && (
+                    <button type="button" className="calendar-log-action" onClick={() => openAssignmentModal(a)}>
+                      Edit assignment
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -368,17 +402,31 @@ export default function EventCalendar({
                     Edit workout
                   </button>
                 )}
+                {canManageAssignments && (
+                  <button type="button" className="calendar-log-action" onClick={() => openAssignmentModal(null)}>
+                    New assignment
+                  </button>
+                )}
               </div>
             </div>
           ) : (
-            canLog &&
-            (isFutureDate ? (
-              <p className="empty-state calendar-log-action">You can't log a workout for a future date yet.</p>
-            ) : (
-              <button type="button" className="calendar-log-action" onClick={openLogModal}>
-                Log a workout
-              </button>
-            ))
+            (canLog || canManageAssignments) && (
+              <>
+                {canLog &&
+                  (isFutureDate ? (
+                    <p className="empty-state calendar-log-action">You can't log a workout for a future date yet.</p>
+                  ) : (
+                    <button type="button" className="calendar-log-action" onClick={openLogModal}>
+                      Log a workout
+                    </button>
+                  ))}
+                {canManageAssignments && (
+                  <button type="button" className="calendar-log-action" onClick={() => openAssignmentModal(null)}>
+                    New assignment
+                  </button>
+                )}
+              </>
+            )
           )}
         </div>
       )}
@@ -393,6 +441,19 @@ export default function EventCalendar({
             onCancel={closeLogModal}
           />
         </Modal>
+      )}
+
+      {assignmentModal && (
+        <CalendarAssignmentModal
+          coachId={coachId}
+          athleteId={targetAthleteId}
+          athleteName={targetAthleteName}
+          dateStr={selectedDate}
+          existing={assignmentModal.existing}
+          otherAthletes={otherAthletes}
+          onClose={closeAssignmentModal}
+          onSaved={handleAssignmentSaved}
+        />
       )}
     </div>
   )

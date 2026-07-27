@@ -169,6 +169,13 @@ export default function EventsPage() {
   // in place, instead of a separate form opening elsewhere on the page.
   const editingState = { editingId, form, setForm, onSubmit: handleEditSubmit, onCancel: cancelEdit, saving, error }
 
+  // A coach (not admin — stays read-only) viewing a specific athlete's
+  // calendar can create/edit that athlete's assignments directly from it;
+  // `otherAthletes` feeds the "also assign to…" broadcast list.
+  const selectedAthlete = athletes.find((a) => a.id === selectedAthleteId)
+  const canManageAssignments = isCoach && Boolean(selectedAthleteId)
+  const otherAthletes = athletes.filter((a) => a.id !== selectedAthleteId)
+
   return (
     <div className="page">
       <div className="page-header-row">
@@ -228,7 +235,9 @@ export default function EventsPage() {
 
           {view === 'calendar' && selectedAthleteId && (
             <p className="form-info">
-              Viewing {athletes.find((a) => a.id === selectedAthleteId)?.name || 'this athlete'}'s calendar — read-only.
+              {canManageAssignments
+                ? `Viewing ${selectedAthlete?.name || 'this athlete'}'s calendar — you can create/edit their assignments below.`
+                : `Viewing ${selectedAthlete?.name || 'this athlete'}'s calendar — read-only.`}
             </p>
           )}
 
@@ -248,6 +257,12 @@ export default function EventsPage() {
                 showAthleteData={Boolean(targetUserId)}
                 workoutsByDate={workoutsByDate}
                 onWorkoutSaved={loadAthleteData}
+                canManageAssignments={canManageAssignments}
+                coachId={user.id}
+                targetAthleteId={selectedAthleteId}
+                targetAthleteName={selectedAthlete?.name}
+                otherAthletes={otherAthletes}
+                onAssignmentSaved={loadAthleteData}
               />
             )
           ) : (
