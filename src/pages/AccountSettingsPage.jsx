@@ -1,51 +1,50 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { updateOwnEmail, updateOwnName, updateOwnPassword } from '../lib/account'
-import {
-  disablePushNotifications,
-  enablePushNotifications,
-  getCurrentSubscription,
-  isPushSupported,
-} from '../lib/pushNotifications'
+import { getNotificationPreferences, isPushSupported, setNotificationPreference } from '../lib/pushNotifications'
 
 export default function AccountSettingsPage() {
   const { user, profile, refreshProfile } = useAuth()
 
   const pushSupported = isPushSupported()
-  const [pushEnabled, setPushEnabled] = useState(false)
+  const [notifyMessages, setNotifyMessages] = useState(false)
+  const [notifyCalendar, setNotifyCalendar] = useState(false)
   const [pushChecking, setPushChecking] = useState(pushSupported)
-  const [pushSaving, setPushSaving] = useState(false)
+  const [savingType, setSavingType] = useState(null) // null | 'messages' | 'calendar'
   const [pushError, setPushError] = useState('')
   const [pushBlocked, setPushBlocked] = useState(false)
 
   useEffect(() => {
     if (!pushSupported) return
     setPushBlocked(Notification.permission === 'denied')
-    getCurrentSubscription()
-      .then((sub) => setPushEnabled(Boolean(sub)))
+    getNotificationPreferences(user.id)
+      .then(({ notifyMessages, notifyCalendar }) => {
+        setNotifyMessages(notifyMessages)
+        setNotifyCalendar(notifyCalendar)
+      })
       .finally(() => setPushChecking(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function handlePushToggle(e) {
-    const wantsOn = e.target.checked
+  // `type`: 'messages' | 'calendar'. Each toggle is independent — turning
+  // one on subscribes this browser first if it isn't already; turning one
+  // off never affects the other (see setNotificationPreference).
+  async function handleToggle(type, checked) {
     setPushError('')
-    setPushSaving(true)
+    setSavingType(type)
     try {
-      if (wantsOn) {
-        await enablePushNotifications(user.id)
-        setPushEnabled(true)
-        setPushBlocked(false)
-      } else {
-        await disablePushNotifications(user.id)
-        setPushEnabled(false)
-      }
+      await setNotificationPreference(user.id, type, checked)
+      if (type === 'messages') setNotifyMessages(checked)
+      else setNotifyCalendar(checked)
+      setPushBlocked(false)
     } catch (err) {
       setPushError(err.message)
       setPushBlocked(Notification.permission === 'denied')
-      setPushEnabled(Boolean(await getCurrentSubscription()))
+      const prefs = await getNotificationPreferences(user.id)
+      setNotifyMessages(prefs.notifyMessages)
+      setNotifyCalendar(prefs.notifyCalendar)
     } finally {
-      setPushSaving(false)
+      setSavingType(null)
     }
   }
 
@@ -221,20 +220,41 @@ export default function AccountSettingsPage() {
               <span className="toggle-switch">
                 <input
                   type="checkbox"
-                  checked={pushEnabled}
-                  onChange={handlePushToggle}
-                  disabled={pushChecking || pushSaving || pushBlocked}
+                  checked={notifyMessages}
+                  onChange={(e) => handleToggle('messages', e.target.checked)}
+                  disabled={pushChecking || savingType !== null || pushBlocked}
                 />
                 <span className="toggle-track" aria-hidden="true" />
               </span>
               <span>
-                <strong>Push notifications</strong>
+                <strong>Message notifications</strong>
                 <br />
                 <span className="page-subtitle" style={{ marginTop: 0 }}>
                   Get notified when you receive a new message.
                 </span>
               </span>
             </label>
+
+            <label className="toggle-row">
+              <span className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={notifyCalendar}
+                  onChange={(e) => handleToggle('calendar', e.target.checked)}
+                  disabled={pushChecking || savingType !== null || pushBlocked}
+                />
+                <span className="toggle-track" aria-hidden="true" />
+              </span>
+              <span>
+                <strong>Daily calendar notifications</strong>
+                <br />
+                <span className="page-subtitle" style={{ marginTop: 0 }}>
+                  Get a morning summary of today's assigned workout and any team events — set on or off
+                  independently of message notifications.
+                </span>
+              </span>
+            </label>
+
             {pushBlocked && (
               <p className="form-error">
                 Notifications are blocked for this site. To turn them on, allow notifications for this site in your

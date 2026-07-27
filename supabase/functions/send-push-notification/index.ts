@@ -2,8 +2,10 @@
 //
 // Triggered by a database webhook (see ../../push_notifications_schema.sql)
 // on every INSERT into public.messages. Looks up who else is in that
-// conversation, finds their opted-in push subscriptions, and sends each one
-// a Web Push notification with the sender's name and a preview of the
+// conversation, finds their subscriptions with notify_messages = true (see
+// ../../notification_preferences_schema.sql — a device can opt into
+// calendar notifications without messages, or vice versa), and sends each
+// one a Web Push notification with the sender's name and a preview of the
 // message.
 //
 // Deploy:
@@ -68,7 +70,11 @@ Deno.serve(async (req) => {
 
     const [{ data: sender }, { data: subscriptions, error: subsError }] = await Promise.all([
       supabase.from('profiles').select('name').eq('id', message.sender_id).single(),
-      supabase.from('push_subscriptions').select('id, subscription').in('user_id', recipientIds),
+      supabase
+        .from('push_subscriptions')
+        .select('id, subscription')
+        .in('user_id', recipientIds)
+        .eq('notify_messages', true),
     ])
 
     if (subsError) throw subsError

@@ -1555,6 +1555,10 @@ input[type='color'] {
   cursor: pointer;
 }
 
+.toggle-row + .toggle-row {
+  margin-top: var(--space-4);
+}
+
 .toggle-switch {
   position: relative;
   display: inline-flex;
