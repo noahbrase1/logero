@@ -2,7 +2,7 @@ import { useState } from 'react'
 import AssignedSegmentsEditor, { emptyAssignedSegment } from './AssignedSegmentsEditor'
 import AssignedSwimSegmentsEditor, { emptyAssignedSwimSegment } from './AssignedSwimSegmentsEditor'
 import AssignedBikeSegmentsEditor, { emptyAssignedBikeSegment } from './AssignedBikeSegmentsEditor'
-import TimeTextInput from './TimeTextInput'
+import AssignedOtherSegmentsEditor, { emptyAssignedOtherSegment } from './AssignedOtherSegmentsEditor'
 
 const emptyExercise = () => ({ exerciseName: '', targetSets: '', targetReps: '', targetWeight: '' })
 
@@ -15,7 +15,7 @@ const emptyExercise = () => ({ exerciseName: '', targetSets: '', targetReps: '',
 //
 // `initialPayload` (optional — omitted for a brand-new assignment): the
 // shape assignmentToFormPayload() returns, i.e.
-// { type, notes, runningSegments, swimSegments, bikeSegments, liftingTargets }.
+// { type, notes, runningSegments, swimSegments, bikeSegments, otherSegments, liftingTargets }.
 export default function AssignmentForm({ initialPayload, onSubmit, onCancel, submitLabel, saving, error }) {
   const [type, setType] = useState(initialPayload?.type || 'running')
   const [notes, setNotes] = useState(initialPayload?.notes || '')
@@ -28,11 +28,11 @@ export default function AssignmentForm({ initialPayload, onSubmit, onCancel, sub
   const [bikeSegments, setBikeSegments] = useState(
     initialPayload?.bikeSegments?.length ? initialPayload.bikeSegments : [emptyAssignedBikeSegment()]
   )
+  const [otherSegments, setOtherSegments] = useState(
+    initialPayload?.otherSegments?.length ? initialPayload.otherSegments : [emptyAssignedOtherSegment()]
+  )
   const [liftingTargets, setLiftingTargets] = useState(
     initialPayload?.liftingTargets?.length ? initialPayload.liftingTargets : [emptyExercise()]
-  )
-  const [otherTargetDuration, setOtherTargetDuration] = useState(
-    initialPayload?.otherTargetDuration || { hours: 0, minutes: 0, seconds: 0 }
   )
 
   function updateLiftingTarget(index, field, value) {
@@ -47,6 +47,7 @@ export default function AssignmentForm({ initialPayload, onSubmit, onCancel, sub
       runningSegments: type === 'running' ? runningSegments : [],
       swimSegments: type === 'swim' ? swimSegments : [],
       bikeSegments: type === 'bike' ? bikeSegments : [],
+      otherSegments: type === 'other' ? otherSegments : [],
       liftingTargets:
         type === 'lifting'
           ? liftingTargets.map((t) => ({
@@ -56,7 +57,6 @@ export default function AssignmentForm({ initialPayload, onSubmit, onCancel, sub
               targetWeight: t.targetWeight ? Number(t.targetWeight) : null,
             }))
           : [],
-      otherTargetDuration: type === 'other' ? otherTargetDuration : null,
     })
   }
 
@@ -76,7 +76,7 @@ export default function AssignmentForm({ initialPayload, onSubmit, onCancel, sub
           Lifting
         </button>
         <button type="button" className={type === 'other' ? 'active' : ''} onClick={() => setType('other')}>
-          Other Aerobic
+          Other
         </button>
       </div>
 
@@ -87,10 +87,7 @@ export default function AssignmentForm({ initialPayload, onSubmit, onCancel, sub
       ) : type === 'bike' ? (
         <AssignedBikeSegmentsEditor segments={bikeSegments} onChange={setBikeSegments} />
       ) : type === 'other' ? (
-        <label>
-          Target duration
-          <TimeTextInput value={otherTargetDuration} onChange={setOtherTargetDuration} ariaLabel="Target duration" />
-        </label>
+        <AssignedOtherSegmentsEditor segments={otherSegments} onChange={setOtherSegments} />
       ) : (
         <fieldset className="splits-fieldset">
           <legend>Target exercises</legend>

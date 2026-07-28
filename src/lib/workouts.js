@@ -137,6 +137,42 @@ async function insertBikeSegments(workoutId, segments) {
   }
 }
 
+// `segments`: [{ label, distanceValue, distanceUnit, reps, repTimes: [{hours,minutes,seconds}, ...] }]
+async function insertOtherSegments(workoutId, segments) {
+  const cleanSegments = (segments || []).filter((s) => s.distanceValue)
+
+  for (let i = 0; i < cleanSegments.length; i++) {
+    const seg = cleanSegments[i]
+    const { data: segmentRow, error: segmentError } = await supabase
+      .from('other_segments')
+      .insert({
+        workout_id: workoutId,
+        order_index: i,
+        label: seg.label || null,
+        distance_value: Number(seg.distanceValue),
+        distance_unit: seg.distanceUnit,
+        reps: Number(seg.reps) || 1,
+      })
+      .select()
+      .single()
+
+    if (segmentError) throw segmentError
+
+    const repRows = (seg.repTimes || []).map((t, idx) => ({
+      segment_id: segmentRow.id,
+      rep_number: idx + 1,
+      time_hours: t.hours || 0,
+      time_minutes: t.minutes || 0,
+      time_seconds: t.seconds || 0,
+    }))
+
+    if (repRows.length > 0) {
+      const { error: repsError } = await supabase.from('other_segment_reps').insert(repRows)
+      if (repsError) throw repsError
+    }
+  }
+}
+
 async function insertLiftingExercises(workoutId, exercises) {
   const cleanExercises = (exercises || []).filter((ex) => ex.exerciseName)
   if (cleanExercises.length === 0) return
@@ -218,14 +254,25 @@ export async function createBikeWorkout({ userId, date, name, perceivedEffort, n
   return workout
 }
 
-export async function createOtherWorkout({ userId, date, name, totalDurationSeconds, perceivedEffort, notes, assignmentId }) {
-  const { data: workout, error } = await supabase
+export async function createOtherWorkout({
+  userId,
+  date,
+  name,
+  totalDistance,
+  totalDurationSeconds,
+  perceivedEffort,
+  notes,
+  segments,
+  assignmentId,
+}) {
+  const { data: workout, error: workoutError } = await supabase
     .from('workouts')
     .insert({
       user_id: userId,
       date,
       type: 'other',
       name,
+      total_distance: totalDistance,
       total_duration_seconds: totalDurationSeconds,
       perceived_effort: perceivedEffort,
       notes,
@@ -233,7 +280,10 @@ export async function createOtherWorkout({ userId, date, name, totalDurationSeco
     })
     .select()
     .single()
-  if (error) throw error
+
+  if (workoutError) throw workoutError
+
+  await insertOtherSegments(workout.id, segments)
   return workout
 }
 
@@ -330,15 +380,27 @@ export async function updateBikeWorkout(id, { date, name, perceivedEffort, notes
   return workout
 }
 
-export async function updateOtherWorkout(id, { date, name, totalDurationSeconds, perceivedEffort, notes }) {
-  const { data, error } = await supabase
+export async function updateOtherWorkout(id, { date, name, totalDistance, totalDurationSeconds, perceivedEffort, notes, segments }) {
+  const { data: workout, error: workoutError } = await supabase
     .from('workouts')
-    .update({ date, name, total_duration_seconds: totalDurationSeconds, perceived_effort: perceivedEffort, notes })
+    .update({
+      date,
+      name,
+      total_distance: totalDistance,
+      total_duration_seconds: totalDurationSeconds,
+      perceived_effort: perceivedEffort,
+      notes,
+    })
     .eq('id', id)
     .select()
     .single()
-  if (error) throw error
-  return data
+  if (workoutError) throw workoutError
+
+  const { error: deleteError } = await supabase.from('other_segments').delete().eq('workout_id', id)
+  if (deleteError) throw deleteError
+
+  await insertOtherSegments(id, segments)
+  return workout
 }
 
 export async function updateLiftingWorkout(id, { date, name, perceivedEffort, notes, exercises }) {
@@ -362,7 +424,7 @@ export async function updateLiftingWorkout(id, { date, name, perceivedEffort, no
 // ---------------------------------------------------------------------------
 
 const WORKOUT_SELECT =
-  '*, running_segments(*, running_segment_reps(*)), swim_segments(*, swim_segment_reps(*)), bike_segments(*, bike_segment_reps(*)), lifting_exercises(*), assigned_workouts(*, assigned_running_segments(*), assigned_swim_segments(*), assigned_bike_segments(*), assigned_lifting_targets(*), assigned_other_targets(*))'
+  '*, running_segments(*, running_segment_reps(*)), swim_segments(*, swim_segment_reps(*)), bike_segments(*, bike_segment_reps(*)), other_segments(*, other_segment_reps(*)), lifting_exercises(*), assigned_workouts(*, assigned_running_segments(*), assigned_swim_segments(*), assigned_bike_segments(*), assigned_other_segments(*), assigned_lifting_targets(*))'
 
 export async function fetchWorkouts({ userId, type, startDate, endDate } = {}) {
   // Sort by submission time, not just the logged date — otherwise two
@@ -396,9 +458,12 @@ function sortWorkoutNested(w) {
   w.swim_segments?.forEach((seg) => seg.swim_segment_reps?.sort((a, b) => a.rep_number - b.rep_number))
   w.bike_segments?.sort((a, b) => a.order_index - b.order_index)
   w.bike_segments?.forEach((seg) => seg.bike_segment_reps?.sort((a, b) => a.rep_number - b.rep_number))
+  w.other_segments?.sort((a, b) => a.order_index - b.order_index)
+  w.other_segments?.forEach((seg) => seg.other_segment_reps?.sort((a, b) => a.rep_number - b.rep_number))
   w.assigned_workouts?.assigned_running_segments?.sort((a, b) => a.order_index - b.order_index)
   w.assigned_workouts?.assigned_swim_segments?.sort((a, b) => a.order_index - b.order_index)
   w.assigned_workouts?.assigned_bike_segments?.sort((a, b) => a.order_index - b.order_index)
+  w.assigned_workouts?.assigned_other_segments?.sort((a, b) => a.order_index - b.order_index)
 }
 
 // !inner forces the join so .neq('profiles.role', ...) can actually filter

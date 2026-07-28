@@ -1,17 +1,17 @@
 import { supabase } from './supabaseClient'
 
 const ASSIGNMENT_SELECT =
-  '*, assigned_running_segments(*), assigned_swim_segments(*), assigned_bike_segments(*), assigned_lifting_targets(*), assigned_other_targets(*)'
+  '*, assigned_running_segments(*), assigned_swim_segments(*), assigned_bike_segments(*), assigned_other_segments(*), assigned_lifting_targets(*)'
 
 function sortAssignment(a) {
   a?.assigned_running_segments?.sort((x, y) => x.order_index - y.order_index)
   a?.assigned_swim_segments?.sort((x, y) => x.order_index - y.order_index)
   a?.assigned_bike_segments?.sort((x, y) => x.order_index - y.order_index)
+  a?.assigned_other_segments?.sort((x, y) => x.order_index - y.order_index)
   return a
 }
 
-// `runningSegments`/`swimSegments`/`bikeSegments`: [{ label, distanceValue, distanceUnit, reps, targetTime: {hours,minutes,seconds} }]
-// `otherTargetDuration`: {hours,minutes,seconds} — a single target duration, no segments/reps.
+// `runningSegments`/`swimSegments`/`bikeSegments`/`otherSegments`: [{ label, distanceValue, distanceUnit, reps, targetTime: {hours,minutes,seconds} }]
 export async function createAssignment({
   coachId,
   athleteId,
@@ -21,8 +21,8 @@ export async function createAssignment({
   runningSegments,
   swimSegments,
   bikeSegments,
+  otherSegments,
   liftingTargets,
-  otherTargetDuration,
 }) {
   const { data: assignment, error } = await supabase
     .from('assigned_workouts')
@@ -88,14 +88,23 @@ export async function createAssignment({
     }
   }
 
-  if (type === 'other') {
-    const { error: targetError } = await supabase.from('assigned_other_targets').insert({
-      assigned_workout_id: assignment.id,
-      target_duration_hours: otherTargetDuration?.hours || 0,
-      target_duration_minutes: otherTargetDuration?.minutes || 0,
-      target_duration_seconds: otherTargetDuration?.seconds || 0,
-    })
-    if (targetError) throw targetError
+  if (type === 'other' && otherSegments?.length) {
+    const cleanSegments = otherSegments.filter((s) => s.distanceValue)
+    for (let i = 0; i < cleanSegments.length; i++) {
+      const seg = cleanSegments[i]
+      const { error: segmentError } = await supabase.from('assigned_other_segments').insert({
+        assigned_workout_id: assignment.id,
+        order_index: i,
+        label: seg.label || null,
+        distance_value: Number(seg.distanceValue),
+        distance_unit: seg.distanceUnit,
+        reps: Number(seg.reps) || 1,
+        target_time_hours: seg.targetTime?.hours || 0,
+        target_time_minutes: seg.targetTime?.minutes || 0,
+        target_time_seconds: seg.targetTime?.seconds || 0,
+      })
+      if (segmentError) throw segmentError
+    }
   }
 
   if (type === 'lifting' && liftingTargets?.length) {
@@ -199,18 +208,12 @@ export function assignmentToFormPayload(assignment) {
     runningSegments: seg(assignment.assigned_running_segments),
     swimSegments: seg(assignment.assigned_swim_segments),
     bikeSegments: seg(assignment.assigned_bike_segments),
+    otherSegments: seg(assignment.assigned_other_segments),
     liftingTargets: (assignment.assigned_lifting_targets || []).map((t) => ({
       exerciseName: t.exercise_name,
       targetSets: t.target_sets ?? '',
       targetReps: t.target_reps ?? '',
       targetWeight: t.target_weight ?? '',
     })),
-    otherTargetDuration: assignment.assigned_other_targets?.[0]
-      ? {
-          hours: assignment.assigned_other_targets[0].target_duration_hours,
-          minutes: assignment.assigned_other_targets[0].target_duration_minutes,
-          seconds: assignment.assigned_other_targets[0].target_duration_seconds,
-        }
-      : { hours: 0, minutes: 0, seconds: 0 },
   }
 }

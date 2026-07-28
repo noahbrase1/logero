@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { formatDistanceValue } from '../utils/format'
 
-const SPORT_LABELS = { running: 'Running', swim: 'Swimming', bike: 'Cycling', other: 'Other Aerobic' }
+const SPORT_LABELS = { running: 'Running', swim: 'Swimming', bike: 'Cycling', other: 'Other' }
 
 // Oval running track — one closed stadium-shaped path, traced twice (a
 // muted track underneath, a colored fill on top). `pathLength="100"` lets
@@ -92,14 +92,7 @@ function OtherShape({ pct }) {
 
 const SHAPES_BY_SPORT = { running: RunningShape, swim: SwimShape, bike: BikeShape, other: OtherShape }
 
-// "Other Aerobic" tracks minutes, not miles (see weeklyMileage.js) — every
-// other sport tracks miles. Chosen by sport rather than a caller-supplied
-// prop, since the unit is inherent to the category, not a per-instance choice.
-function formatValue(sport, value) {
-  return sport === 'other' ? Math.round(value) : formatDistanceValue(value, 'miles')
-}
-
-// One sport's weekly progress meter: shape + "current / goal" text.
+// One sport's weekly progress meter: shape + "current / goal mi" text.
 // `goal` null/0 means no goal is set for this sport — the shape then
 // renders unfilled and the text drops the "/ goal" half, rather than hiding
 // the sport entirely (keeps all four meters always present, stable layout).
@@ -107,17 +100,14 @@ export default function SportProgressMeter({ sport, current, goal }) {
   const hasGoal = Boolean(goal && goal > 0)
   const pct = hasGoal ? Math.min(100, (current / goal) * 100) : 0
   const Shape = SHAPES_BY_SPORT[sport]
-  const unit = sport === 'other' ? 'min' : 'mi'
-  const currentText = formatValue(sport, current)
-  const goalText = hasGoal ? formatValue(sport, goal) : null
+  const currentText = formatDistanceValue(current, 'miles')
+  const goalText = hasGoal ? formatDistanceValue(goal, 'miles') : null
 
   return (
     <div className="progress-meter-card">
       <div className="progress-meter-label">{SPORT_LABELS[sport]}</div>
       <Shape pct={pct} />
-      <div className="progress-meter-value">
-        {hasGoal ? `${currentText} / ${goalText} ${unit}` : `${currentText} ${unit}`}
-      </div>
+      <div className="progress-meter-value">{hasGoal ? `${currentText} / ${goalText} mi` : `${currentText} mi`}</div>
     </div>
   )
 }

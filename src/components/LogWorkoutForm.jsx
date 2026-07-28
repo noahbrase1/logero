@@ -18,6 +18,7 @@ import { distanceToMeters, hmsToSeconds, metersToMiles, roundMiles, secondsToHms
 import RunningSegmentsEditor, { emptySegment } from './RunningSegmentsEditor'
 import SwimSegmentsEditor, { emptySwimSegment } from './SwimSegmentsEditor'
 import BikeSegmentsEditor, { emptyBikeSegment } from './BikeSegmentsEditor'
+import OtherSegmentsEditor, { emptySegment as emptyOtherSegment } from './OtherSegmentsEditor'
 import TimeTextInput from './TimeTextInput'
 import QuickNoteForm from './QuickNoteForm'
 import { useToast } from '../context/ToastContext'
@@ -66,6 +67,7 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
   const [segments, setSegments] = useState([emptySegment()])
   const [swimSegments, setSwimSegments] = useState([emptySwimSegment()])
   const [bikeSegments, setBikeSegments] = useState([emptyBikeSegment()])
+  const [otherSegments, setOtherSegments] = useState([emptyOtherSegment()])
   const [totalDuration, setTotalDuration] = useState({ hours: 0, minutes: 0, seconds: 0 })
   const [totalDurationManual, setTotalDurationManual] = useState(false)
   // Bumped only on *programmatic* total-duration changes (auto-sum, prefill,
@@ -81,19 +83,24 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
   const [error, setError] = useState('')
 
   const totalDistanceMiles = sumSegmentsDistanceMiles(segments)
+  const totalOtherDistanceMiles = sumSegmentsDistanceMiles(otherSegments)
 
-  // Keep total duration in sync with the segments unless the athlete has
-  // manually overridden it (e.g. to account for rest/cooldown time).
+  // Keep total duration in sync with the active type's segments (running or
+  // other — the only two segment-based types with a total-duration row)
+  // unless the athlete has manually overridden it (e.g. to account for
+  // rest/cooldown time).
   useEffect(() => {
     if (totalDurationManual) return
-    setTotalDuration(secondsToHms(sumSegmentsSeconds(segments)))
+    const activeSegments = type === 'other' ? otherSegments : segments
+    setTotalDuration(secondsToHms(sumSegmentsSeconds(activeSegments)))
     setTotalDurationResetKey((k) => k + 1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [segments, totalDurationManual])
+  }, [type, segments, otherSegments, totalDurationManual])
 
   function recalcTotalFromSegments() {
     setTotalDurationManual(false)
-    setTotalDuration(secondsToHms(sumSegmentsSeconds(segments)))
+    const activeSegments = type === 'other' ? otherSegments : segments
+    setTotalDuration(secondsToHms(sumSegmentsSeconds(activeSegments)))
     setTotalDurationResetKey((k) => k + 1)
   }
 
@@ -188,6 +195,20 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
             }))
           )
         } else if (workout.type === 'other') {
+          setOtherSegments(
+            (workout.other_segments || []).map((seg) => ({
+              key: crypto.randomUUID(),
+              label: seg.label || '',
+              distanceValue: String(seg.distance_value),
+              distanceUnit: seg.distance_unit,
+              reps: seg.reps || 1,
+              repTimes: (seg.other_segment_reps || []).map((r) => ({
+                hours: r.time_hours || 0,
+                minutes: r.time_minutes || 0,
+                seconds: r.time_seconds || 0,
+              })),
+            }))
+          )
           setTotalDuration(secondsToHms(workout.total_duration_seconds || 0))
           setTotalDurationManual(true)
           setTotalDurationResetKey((k) => k + 1)
@@ -278,15 +299,27 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
         )
       }
     } else if (assignment.type === 'other') {
-      const target = assignment.assigned_other_targets?.[0]
-      if (target) {
-        setTotalDuration({
-          hours: target.target_duration_hours || 0,
-          minutes: target.target_duration_minutes || 0,
-          seconds: target.target_duration_seconds || 0,
-        })
-        setTotalDurationManual(true)
-        setTotalDurationResetKey((k) => k + 1)
+      const targetSegments = assignment.assigned_other_segments || []
+      if (targetSegments.length > 0) {
+        setOtherSegments(
+          targetSegments.map((seg) => {
+            const repTime = {
+              hours: seg.target_time_hours || 0,
+              minutes: seg.target_time_minutes || 0,
+              seconds: seg.target_time_seconds || 0,
+            }
+            const reps = seg.reps || 1
+            return {
+              key: crypto.randomUUID(),
+              label: seg.label || '',
+              distanceValue: String(seg.distance_value),
+              distanceUnit: seg.distance_unit,
+              reps,
+              repTimes: Array.from({ length: reps }, () => ({ ...repTime })),
+            }
+          })
+        )
+        setTotalDurationManual(false)
       }
     } else {
       const targets = assignment.assigned_lifting_targets || []
@@ -363,9 +396,11 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
         const payload = {
           date,
           name,
+          totalDistance: totalOtherDistanceMiles > 0 ? totalOtherDistanceMiles : null,
           totalDurationSeconds: totalDurationSeconds > 0 ? totalDurationSeconds : null,
           perceivedEffort: Number(perceivedEffort),
           notes,
+          segments: otherSegments.filter((s) => s.distanceValue),
         }
         if (isEditing) {
           await updateOtherWorkout(workoutId, payload)
@@ -496,7 +531,7 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                     className={type === 'other' ? 'active' : ''}
                     onClick={() => setType('other')}
                   >
-                    Other Aerobic
+                    Other
                   </button>
                 </div>
               )}
@@ -536,20 +571,35 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
               ) : type === 'bike' ? (
                 <BikeSegmentsEditor segments={bikeSegments} onChange={setBikeSegments} />
               ) : type === 'other' ? (
-                <div className="total-duration-row">
-                  <div>
-                    <span className="total-duration-label">Duration</span>
-                    <TimeTextInput
-                      key={totalDurationResetKey}
-                      value={totalDuration}
-                      onChange={(v) => {
-                        setTotalDuration(v)
-                        setTotalDurationManual(true)
-                      }}
-                      ariaLabel="Workout duration"
-                    />
+                <>
+                  <OtherSegmentsEditor segments={otherSegments} onChange={setOtherSegments} />
+
+                  <div className="total-duration-row">
+                    <div>
+                      <span className="total-duration-label">Total distance</span>
+                      <span className="total-duration-value">
+                        {totalOtherDistanceMiles > 0 ? `${roundMiles(totalOtherDistanceMiles)} mi` : '—'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="total-duration-label">Total duration</span>
+                      <TimeTextInput
+                        key={totalDurationResetKey}
+                        value={totalDuration}
+                        onChange={(v) => {
+                          setTotalDuration(v)
+                          setTotalDurationManual(true)
+                        }}
+                        ariaLabel="Total workout duration"
+                      />
+                      {totalDurationManual && (
+                        <button type="button" className="link-button" onClick={recalcTotalFromSegments}>
+                          Recalculate from segments
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </>
               ) : (
                 <fieldset className="splits-fieldset">
                   <legend>Exercises</legend>

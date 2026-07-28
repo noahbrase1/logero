@@ -92,12 +92,15 @@ const METERS_PER_MILE = 1609.344
 
 const METERS_PER_YARD = 0.9144
 
+const METERS_PER_FOOT = 0.3048
+
 export function distanceToMeters(value, unit) {
   const v = Number(value)
   if (!v || v <= 0) return 0
   if (unit === 'km') return v * 1000
   if (unit === 'miles') return v * METERS_PER_MILE
   if (unit === 'yards') return v * METERS_PER_YARD
+  if (unit === 'feet') return v * METERS_PER_FOOT
   return v // meters
 }
 
@@ -109,6 +112,7 @@ export function unitAbbrev(unit) {
   if (unit === 'meters') return 'm'
   if (unit === 'km') return 'km'
   if (unit === 'yards') return 'yd'
+  if (unit === 'feet') return 'ft'
   return 'mi'
 }
 
@@ -134,7 +138,7 @@ export const WORKOUT_TYPE_LABELS = {
   bike: 'Cycling',
   lifting: 'Lifting',
   note: 'Note',
-  other: 'Other Aerobic',
+  other: 'Other',
 }
 
 export function workoutTypeLabel(type) {
@@ -239,12 +243,14 @@ const ASSIGNED_SEGMENTS_FIELD_BY_TYPE = {
   running: 'assigned_running_segments',
   swim: 'assigned_swim_segments',
   bike: 'assigned_bike_segments',
+  other: 'assigned_other_segments',
 }
 
 const LOGGED_SEGMENTS_FIELD_BY_TYPE = {
   running: 'running_segments',
   swim: 'swim_segments',
   bike: 'bike_segments',
+  other: 'other_segments',
 }
 
 // Total assigned distance across a running/swim/bike assignment's target
@@ -263,7 +269,7 @@ export function sumAssignedDistanceMiles(assignment) {
 // summed the same way assigned distance is. 0 for lifting/note.
 export function sumLoggedDistanceMiles(workout) {
   if (!workout) return 0
-  if (workout.type === 'running' && workout.total_distance) return workout.total_distance
+  if ((workout.type === 'running' || workout.type === 'other') && workout.total_distance) return workout.total_distance
   const field = LOGGED_SEGMENTS_FIELD_BY_TYPE[workout.type]
   return field ? sumSegmentDistanceMiles(workout[field]) : 0
 }
@@ -310,6 +316,7 @@ const LOGGED_REPS_FIELD_BY_TYPE = {
   running: 'running_segment_reps',
   swim: 'swim_segment_reps',
   bike: 'bike_segment_reps',
+  other: 'other_segment_reps',
 }
 
 // Total logged time across every rep of every segment in a running/swim/
@@ -320,7 +327,9 @@ const LOGGED_REPS_FIELD_BY_TYPE = {
 // logged with no rep times at all.
 export function sumLoggedTimeSeconds(workout) {
   if (!workout) return 0
-  if (workout.type === 'running' && workout.total_duration_seconds) return workout.total_duration_seconds
+  if ((workout.type === 'running' || workout.type === 'other') && workout.total_duration_seconds) {
+    return workout.total_duration_seconds
+  }
   const field = LOGGED_SEGMENTS_FIELD_BY_TYPE[workout.type]
   const repsField = LOGGED_REPS_FIELD_BY_TYPE[workout.type]
   if (!field || !repsField) return 0
@@ -396,6 +405,7 @@ export function summarizeAssignment(assignment) {
     running: assignment.assigned_running_segments,
     swim: assignment.assigned_swim_segments,
     bike: assignment.assigned_bike_segments,
+    other: assignment.assigned_other_segments,
   }
   const segments = segmentsByType[assignment.type]
 
@@ -422,17 +432,6 @@ export function summarizeAssignment(assignment) {
         return `${t.exercise_name}${setsReps}`
       })
       .join(', ')
-  }
-
-  if (assignment.type === 'other') {
-    const target = assignment.assigned_other_targets?.[0]
-    if (!target) return ''
-    const targetSeconds = hmsToSeconds({
-      hours: target.target_duration_hours,
-      minutes: target.target_duration_minutes,
-      seconds: target.target_duration_seconds,
-    })
-    return targetSeconds > 0 ? secondsToClock(targetSeconds) : ''
   }
 
   return ''

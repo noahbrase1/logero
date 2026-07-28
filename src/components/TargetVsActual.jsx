@@ -158,30 +158,6 @@ export default function TargetVsActual({ assignment, workout }) {
     )
   }
 
-  if (assignment.type === 'other') {
-    const target = assignment.assigned_other_targets?.[0]
-    if (!target) return null
-    const targetSeconds = hmsToSeconds({
-      hours: target.target_duration_hours,
-      minutes: target.target_duration_minutes,
-      seconds: target.target_duration_seconds,
-    })
-
-    return (
-      <div className="target-actual">
-        <div className="target-actual-heading">Target vs. actual</div>
-        <div className="target-actual-row">
-          <span className="ta-label">Target</span>
-          <span>{targetSeconds > 0 ? secondsToClock(targetSeconds) : '—'}</span>
-        </div>
-        <div className="target-actual-row">
-          <span className="ta-label">Actual</span>
-          <span>{workout?.total_duration_seconds ? secondsToClock(workout.total_duration_seconds) : 'Not yet logged'}</span>
-        </div>
-      </div>
-    )
-  }
-
   const targets = assignment.assigned_lifting_targets || []
   if (targets.length === 0) return null
 

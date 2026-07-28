@@ -18,12 +18,13 @@ import TargetVsActual from './TargetVsActual'
 import WorkoutTypeIcon from './WorkoutTypeIcon'
 
 // assigned_workouts' target-segments field, per workout type — running/swim/
-// bike only (lifting keeps its existing TargetVsActual comparison instead,
+// bike/other (lifting keeps its existing TargetVsActual comparison instead,
 // see the isLifting branch below).
 const ASSIGNED_SEGMENTS_FIELD_BY_TYPE = {
   running: 'assigned_running_segments',
   swim: 'assigned_swim_segments',
   bike: 'assigned_bike_segments',
+  other: 'assigned_other_segments',
 }
 
 export default function WorkoutCard({ workout, showAthleteName = false }) {
@@ -65,10 +66,7 @@ export default function WorkoutCard({ workout, showAthleteName = false }) {
       ) : isBike ? (
         <ActualAndPrescribed workout={workout} segments={workout.bike_segments} SegmentComponent={BikeSegmentSummary} />
       ) : isOther ? (
-        <div className="workout-stats">
-          <Stat label="Duration" value={workout.total_duration_seconds ? secondsToClock(workout.total_duration_seconds) : '—'} />
-          <Stat label="Effort" value={workout.perceived_effort ? `${workout.perceived_effort}/10` : '—'} />
-        </div>
+        <ActualAndPrescribed workout={workout} segments={workout.other_segments} SegmentComponent={OtherSegmentSummary} />
       ) : (
         <>
           <div className="workout-stats">
@@ -106,9 +104,7 @@ export default function WorkoutCard({ workout, showAthleteName = false }) {
 
       {workout.notes && <p className="workout-notes">{workout.notes}</p>}
 
-      {(isLifting || isOther) && workout.assigned_workouts && (
-        <TargetVsActual assignment={workout.assigned_workouts} workout={workout} />
-      )}
+      {isLifting && workout.assigned_workouts && <TargetVsActual assignment={workout.assigned_workouts} workout={workout} />}
 
       <WorkoutComments workoutId={workout.id} />
     </article>
@@ -222,6 +218,21 @@ function BikeSegmentSummary({ segment }) {
         {timesText}
         {extras.length > 0 && `, ${extras.join(', ')}`}
       </div>
+    </div>
+  )
+}
+
+// No pace shown, same reasoning as swim — "Other" spans too many kinds of
+// activity for a generic mile-pace figure to mean much across all of them.
+function OtherSegmentSummary({ segment }) {
+  const reps = segment.reps || 1
+  const { timesText } = summarizeReps(segment.distance_meters, segment.other_segment_reps)
+  const title = `${segment.label ? `${segment.label}: ` : ''}${reps > 1 ? `${reps} × ` : ''}${formatDistanceValue(segment.distance_value, segment.distance_unit)} ${unitAbbrev(segment.distance_unit)}`
+
+  return (
+    <div className="segment-summary">
+      <div className="segment-summary-title">{title}</div>
+      <div className="segment-summary-detail">{timesText}</div>
     </div>
   )
 }
