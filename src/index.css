@@ -625,6 +625,7 @@ label {
 
 .type-toggle {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
 }
@@ -2903,10 +2904,6 @@ button.link-button.danger {
   .page-header-row {
     flex-wrap: wrap;
     gap: var(--space-3);
-  }
-
-  .type-toggle {
-    flex-wrap: wrap;
   }
 
   .calendar-nav {
