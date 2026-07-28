@@ -2,6 +2,7 @@ import { useState } from 'react'
 import AssignedSegmentsEditor, { emptyAssignedSegment } from './AssignedSegmentsEditor'
 import AssignedSwimSegmentsEditor, { emptyAssignedSwimSegment } from './AssignedSwimSegmentsEditor'
 import AssignedBikeSegmentsEditor, { emptyAssignedBikeSegment } from './AssignedBikeSegmentsEditor'
+import TimeTextInput from './TimeTextInput'
 
 const emptyExercise = () => ({ exerciseName: '', targetSets: '', targetReps: '', targetWeight: '' })
 
@@ -30,6 +31,9 @@ export default function AssignmentForm({ initialPayload, onSubmit, onCancel, sub
   const [liftingTargets, setLiftingTargets] = useState(
     initialPayload?.liftingTargets?.length ? initialPayload.liftingTargets : [emptyExercise()]
   )
+  const [otherTargetDuration, setOtherTargetDuration] = useState(
+    initialPayload?.otherTargetDuration || { hours: 0, minutes: 0, seconds: 0 }
+  )
 
   function updateLiftingTarget(index, field, value) {
     setLiftingTargets((prev) => prev.map((t, i) => (i === index ? { ...t, [field]: value } : t)))
@@ -52,6 +56,7 @@ export default function AssignmentForm({ initialPayload, onSubmit, onCancel, sub
               targetWeight: t.targetWeight ? Number(t.targetWeight) : null,
             }))
           : [],
+      otherTargetDuration: type === 'other' ? otherTargetDuration : null,
     })
   }
 
@@ -70,6 +75,9 @@ export default function AssignmentForm({ initialPayload, onSubmit, onCancel, sub
         <button type="button" className={type === 'lifting' ? 'active' : ''} onClick={() => setType('lifting')}>
           Lifting
         </button>
+        <button type="button" className={type === 'other' ? 'active' : ''} onClick={() => setType('other')}>
+          Other Aerobic
+        </button>
       </div>
 
       {type === 'running' ? (
@@ -78,6 +86,11 @@ export default function AssignmentForm({ initialPayload, onSubmit, onCancel, sub
         <AssignedSwimSegmentsEditor segments={swimSegments} onChange={setSwimSegments} />
       ) : type === 'bike' ? (
         <AssignedBikeSegmentsEditor segments={bikeSegments} onChange={setBikeSegments} />
+      ) : type === 'other' ? (
+        <label>
+          Target duration
+          <TimeTextInput value={otherTargetDuration} onChange={setOtherTargetDuration} ariaLabel="Target duration" />
+        </label>
       ) : (
         <fieldset className="splits-fieldset">
           <legend>Target exercises</legend>

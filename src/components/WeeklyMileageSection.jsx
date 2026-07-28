@@ -1,16 +1,25 @@
 import { useEffect, useState } from 'react'
 import { fetchAssignmentsForAthlete } from '../lib/assignments'
 import { fetchWorkouts } from '../lib/workouts'
-import { MILEAGE_SPORTS, weeklyAssignedTotalsBySport, weeklyLoggedTotalsBySport } from '../utils/weeklyMileage'
+import {
+  MILEAGE_SPORTS,
+  weeklyAssignedOtherMinutes,
+  weeklyAssignedTotalsBySport,
+  weeklyLoggedOtherMinutes,
+  weeklyLoggedTotalsBySport,
+} from '../utils/weeklyMileage'
 import { addDays, formatWeekRangeLabel, startOfWeek, toDateStr } from '../utils/week'
 import SportProgressMeter from './SportProgressMeter'
 
-// "Weekly Mileage": three per-sport progress meters — logged distance this
-// week vs. whatever the coach assigned that athlete that week (summed
-// across every assignment in the range, however it was created: the grid,
-// the flat list, or the calendar's per-athlete assignment modal). There's
-// no separately coach-set goal number — the target simply carries over
-// from assigned mileage, so it updates the moment an assignment changes.
+const ALL_SPORTS = [...MILEAGE_SPORTS, 'other']
+
+// "Weekly Mileage": four per-sport progress meters (running/swim/bike by
+// distance, Other Aerobic by minutes) — logged total this week vs. whatever
+// the coach assigned that athlete that week (summed across every assignment
+// in the range, however it was created: the grid, the flat list, or the
+// calendar's per-athlete assignment modal). There's no separately coach-set
+// goal number — the target simply carries over from assigned mileage/
+// duration, so it updates the moment an assignment changes.
 export default function WeeklyMileageSection({ athleteId }) {
   const [weekMonday, setWeekMonday] = useState(() => startOfWeek(new Date()))
   const [workouts, setWorkouts] = useState([])
@@ -39,8 +48,8 @@ export default function WeeklyMileageSection({ athleteId }) {
       .finally(() => setLoading(false))
   }, [athleteId, weekMonday])
 
-  const totals = weeklyLoggedTotalsBySport(workouts)
-  const goals = weeklyAssignedTotalsBySport(assignments)
+  const totals = { ...weeklyLoggedTotalsBySport(workouts), other: weeklyLoggedOtherMinutes(workouts) }
+  const goals = { ...weeklyAssignedTotalsBySport(assignments), other: weeklyAssignedOtherMinutes(assignments) }
 
   return (
     <div className="weekly-mileage-section">
@@ -66,15 +75,15 @@ export default function WeeklyMileageSection({ athleteId }) {
 
       <div className="progress-meter-row">
         {loading
-          ? MILEAGE_SPORTS.map((sport) => (
+          ? ALL_SPORTS.map((sport) => (
               <div key={sport} className="progress-meter-card skeleton-card" style={{ height: 140 }} />
             ))
-          : MILEAGE_SPORTS.map((sport) => (
+          : ALL_SPORTS.map((sport) => (
               <SportProgressMeter
                 key={sport}
                 sport={sport}
-                currentMiles={totals[sport]}
-                goalMiles={goals[sport] > 0 ? goals[sport] : null}
+                current={totals[sport]}
+                goal={goals[sport] > 0 ? goals[sport] : null}
               />
             ))}
       </div>

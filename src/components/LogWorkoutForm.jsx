@@ -3,11 +3,13 @@ import { useAuth } from '../context/AuthContext'
 import {
   createBikeWorkout,
   createLiftingWorkout,
+  createOtherWorkout,
   createRunningWorkout,
   createSwimWorkout,
   fetchWorkoutById,
   updateBikeWorkout,
   updateLiftingWorkout,
+  updateOtherWorkout,
   updateRunningWorkout,
   updateSwimWorkout,
 } from '../lib/workouts'
@@ -185,6 +187,10 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
               })),
             }))
           )
+        } else if (workout.type === 'other') {
+          setTotalDuration(secondsToHms(workout.total_duration_seconds || 0))
+          setTotalDurationManual(true)
+          setTotalDurationResetKey((k) => k + 1)
         } else {
           const mapped = (workout.lifting_exercises || []).map((ex) => ({
             exerciseName: ex.exercise_name,
@@ -271,6 +277,17 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
           })
         )
       }
+    } else if (assignment.type === 'other') {
+      const target = assignment.assigned_other_targets?.[0]
+      if (target) {
+        setTotalDuration({
+          hours: target.target_duration_hours || 0,
+          minutes: target.target_duration_minutes || 0,
+          seconds: target.target_duration_seconds || 0,
+        })
+        setTotalDurationManual(true)
+        setTotalDurationResetKey((k) => k + 1)
+      }
     } else {
       const targets = assignment.assigned_lifting_targets || []
       if (targets.length > 0) {
@@ -341,6 +358,19 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
           await updateBikeWorkout(workoutId, payload)
         } else {
           await createBikeWorkout({ userId: user.id, ...payload, assignmentId: assignmentId || null })
+        }
+      } else if (type === 'other') {
+        const payload = {
+          date,
+          name,
+          totalDurationSeconds: totalDurationSeconds > 0 ? totalDurationSeconds : null,
+          perceivedEffort: Number(perceivedEffort),
+          notes,
+        }
+        if (isEditing) {
+          await updateOtherWorkout(workoutId, payload)
+        } else {
+          await createOtherWorkout({ userId: user.id, ...payload, assignmentId: assignmentId || null })
         }
       } else {
         const payload = {
@@ -418,7 +448,7 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                   <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
                 </label>
                 <label>
-                  Workout name
+                  {type === 'other' ? 'Activity name' : 'Workout name'}
                   <input
                     type="text"
                     value={name}
@@ -430,7 +460,9 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                           ? 'Swim practice'
                           : type === 'bike'
                             ? 'Bike ride'
-                            : 'Leg day'
+                            : type === 'other'
+                              ? 'Rowing'
+                              : 'Leg day'
                     }
                     required
                   />
@@ -458,6 +490,13 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                     onClick={() => setType('lifting')}
                   >
                     Lifting
+                  </button>
+                  <button
+                    type="button"
+                    className={type === 'other' ? 'active' : ''}
+                    onClick={() => setType('other')}
+                  >
+                    Other Aerobic
                   </button>
                 </div>
               )}
@@ -496,6 +535,21 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                 <SwimSegmentsEditor segments={swimSegments} onChange={setSwimSegments} />
               ) : type === 'bike' ? (
                 <BikeSegmentsEditor segments={bikeSegments} onChange={setBikeSegments} />
+              ) : type === 'other' ? (
+                <div className="total-duration-row">
+                  <div>
+                    <span className="total-duration-label">Duration</span>
+                    <TimeTextInput
+                      key={totalDurationResetKey}
+                      value={totalDuration}
+                      onChange={(v) => {
+                        setTotalDuration(v)
+                        setTotalDurationManual(true)
+                      }}
+                      ariaLabel="Workout duration"
+                    />
+                  </div>
+                </div>
               ) : (
                 <fieldset className="splits-fieldset">
                   <legend>Exercises</legend>

@@ -1,4 +1,4 @@
-import { IconBike, IconDumbbell, IconPencil, IconRun, IconSwimming } from '@tabler/icons-react'
+import { IconActivityHeartbeat, IconBike, IconDumbbell, IconPencil, IconRun, IconSwimming } from '@tabler/icons-react'
 
 const ICONS_BY_TYPE = {
   running: IconRun,
@@ -6,6 +6,7 @@ const ICONS_BY_TYPE = {
   bike: IconBike,
   lifting: IconDumbbell,
   note: IconPencil,
+  other: IconActivityHeartbeat,
 }
 
 // Fixed sport-type icon, colored via the `type-{type}` CSS class (see

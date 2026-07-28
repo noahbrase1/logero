@@ -218,6 +218,25 @@ export async function createBikeWorkout({ userId, date, name, perceivedEffort, n
   return workout
 }
 
+export async function createOtherWorkout({ userId, date, name, totalDurationSeconds, perceivedEffort, notes, assignmentId }) {
+  const { data: workout, error } = await supabase
+    .from('workouts')
+    .insert({
+      user_id: userId,
+      date,
+      type: 'other',
+      name,
+      total_duration_seconds: totalDurationSeconds,
+      perceived_effort: perceivedEffort,
+      notes,
+      assignment_id: assignmentId || null,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return workout
+}
+
 export async function createLiftingWorkout({ userId, date, name, perceivedEffort, notes, exercises, assignmentId }) {
   const { data: workout, error: workoutError } = await supabase
     .from('workouts')
@@ -311,6 +330,17 @@ export async function updateBikeWorkout(id, { date, name, perceivedEffort, notes
   return workout
 }
 
+export async function updateOtherWorkout(id, { date, name, totalDurationSeconds, perceivedEffort, notes }) {
+  const { data, error } = await supabase
+    .from('workouts')
+    .update({ date, name, total_duration_seconds: totalDurationSeconds, perceived_effort: perceivedEffort, notes })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function updateLiftingWorkout(id, { date, name, perceivedEffort, notes, exercises }) {
   const { data: workout, error: workoutError } = await supabase
     .from('workouts')
@@ -332,7 +362,7 @@ export async function updateLiftingWorkout(id, { date, name, perceivedEffort, no
 // ---------------------------------------------------------------------------
 
 const WORKOUT_SELECT =
-  '*, running_segments(*, running_segment_reps(*)), swim_segments(*, swim_segment_reps(*)), bike_segments(*, bike_segment_reps(*)), lifting_exercises(*), assigned_workouts(*, assigned_running_segments(*), assigned_swim_segments(*), assigned_bike_segments(*), assigned_lifting_targets(*))'
+  '*, running_segments(*, running_segment_reps(*)), swim_segments(*, swim_segment_reps(*)), bike_segments(*, bike_segment_reps(*)), lifting_exercises(*), assigned_workouts(*, assigned_running_segments(*), assigned_swim_segments(*), assigned_bike_segments(*), assigned_lifting_targets(*), assigned_other_targets(*))'
 
 export async function fetchWorkouts({ userId, type, startDate, endDate } = {}) {
   // Sort by submission time, not just the logged date — otherwise two

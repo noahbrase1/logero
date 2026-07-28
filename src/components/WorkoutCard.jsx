@@ -32,6 +32,7 @@ export default function WorkoutCard({ workout, showAthleteName = false }) {
   const isSwim = workout.type === 'swim'
   const isBike = workout.type === 'bike'
   const isLifting = workout.type === 'lifting'
+  const isOther = workout.type === 'other'
   const canEdit = profile?.role === 'athlete' && user?.id === workout.user_id
 
   return (
@@ -63,6 +64,11 @@ export default function WorkoutCard({ workout, showAthleteName = false }) {
         <ActualAndPrescribed workout={workout} segments={workout.swim_segments} SegmentComponent={SwimSegmentSummary} />
       ) : isBike ? (
         <ActualAndPrescribed workout={workout} segments={workout.bike_segments} SegmentComponent={BikeSegmentSummary} />
+      ) : isOther ? (
+        <div className="workout-stats">
+          <Stat label="Duration" value={workout.total_duration_seconds ? secondsToClock(workout.total_duration_seconds) : '—'} />
+          <Stat label="Effort" value={workout.perceived_effort ? `${workout.perceived_effort}/10` : '—'} />
+        </div>
       ) : (
         <>
           <div className="workout-stats">
@@ -100,7 +106,9 @@ export default function WorkoutCard({ workout, showAthleteName = false }) {
 
       {workout.notes && <p className="workout-notes">{workout.notes}</p>}
 
-      {isLifting && workout.assigned_workouts && <TargetVsActual assignment={workout.assigned_workouts} workout={workout} />}
+      {(isLifting || isOther) && workout.assigned_workouts && (
+        <TargetVsActual assignment={workout.assigned_workouts} workout={workout} />
+      )}
 
       <WorkoutComments workoutId={workout.id} />
     </article>

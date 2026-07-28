@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient'
 
 const ASSIGNMENT_SELECT =
-  '*, assigned_running_segments(*), assigned_swim_segments(*), assigned_bike_segments(*), assigned_lifting_targets(*)'
+  '*, assigned_running_segments(*), assigned_swim_segments(*), assigned_bike_segments(*), assigned_lifting_targets(*), assigned_other_targets(*)'
 
 function sortAssignment(a) {
   a?.assigned_running_segments?.sort((x, y) => x.order_index - y.order_index)
@@ -11,6 +11,7 @@ function sortAssignment(a) {
 }
 
 // `runningSegments`/`swimSegments`/`bikeSegments`: [{ label, distanceValue, distanceUnit, reps, targetTime: {hours,minutes,seconds} }]
+// `otherTargetDuration`: {hours,minutes,seconds} — a single target duration, no segments/reps.
 export async function createAssignment({
   coachId,
   athleteId,
@@ -21,6 +22,7 @@ export async function createAssignment({
   swimSegments,
   bikeSegments,
   liftingTargets,
+  otherTargetDuration,
 }) {
   const { data: assignment, error } = await supabase
     .from('assigned_workouts')
@@ -84,6 +86,16 @@ export async function createAssignment({
       })
       if (segmentError) throw segmentError
     }
+  }
+
+  if (type === 'other') {
+    const { error: targetError } = await supabase.from('assigned_other_targets').insert({
+      assigned_workout_id: assignment.id,
+      target_duration_hours: otherTargetDuration?.hours || 0,
+      target_duration_minutes: otherTargetDuration?.minutes || 0,
+      target_duration_seconds: otherTargetDuration?.seconds || 0,
+    })
+    if (targetError) throw targetError
   }
 
   if (type === 'lifting' && liftingTargets?.length) {
@@ -193,5 +205,12 @@ export function assignmentToFormPayload(assignment) {
       targetReps: t.target_reps ?? '',
       targetWeight: t.target_weight ?? '',
     })),
+    otherTargetDuration: assignment.assigned_other_targets?.[0]
+      ? {
+          hours: assignment.assigned_other_targets[0].target_duration_hours,
+          minutes: assignment.assigned_other_targets[0].target_duration_minutes,
+          seconds: assignment.assigned_other_targets[0].target_duration_seconds,
+        }
+      : { hours: 0, minutes: 0, seconds: 0 },
   }
 }

@@ -134,6 +134,7 @@ export const WORKOUT_TYPE_LABELS = {
   bike: 'Cycling',
   lifting: 'Lifting',
   note: 'Note',
+  other: 'Other Aerobic',
 }
 
 export function workoutTypeLabel(type) {
@@ -421,6 +422,17 @@ export function summarizeAssignment(assignment) {
         return `${t.exercise_name}${setsReps}`
       })
       .join(', ')
+  }
+
+  if (assignment.type === 'other') {
+    const target = assignment.assigned_other_targets?.[0]
+    if (!target) return ''
+    const targetSeconds = hmsToSeconds({
+      hours: target.target_duration_hours,
+      minutes: target.target_duration_minutes,
+      seconds: target.target_duration_seconds,
+    })
+    return targetSeconds > 0 ? secondsToClock(targetSeconds) : ''
   }
 
   return ''

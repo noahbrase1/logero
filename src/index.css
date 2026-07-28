@@ -26,6 +26,7 @@
   --bike: #16a34a;
   --lifting: #ff7f50;
   --note: #6b7280;
+  --other: #e11d48;
 
   /* Dashboard metric-card colors — a separate, harmonious trio deliberately
      distinct from the sport-type palette above, so a metric card is never
@@ -795,6 +796,11 @@ label {
   color: var(--note);
 }
 
+.type-other {
+  background: rgba(225, 29, 72, 0.1);
+  color: var(--other);
+}
+
 .type-admin,
 .type-coach {
   background: var(--accent-bg);
@@ -834,6 +840,11 @@ label {
   color: var(--note);
 }
 
+.workout-type-icon.type-other {
+  background: none;
+  color: var(--other);
+}
+
 /* --- Workout card left-border sport accent — fixed sport-type colors,
    independent of the team's theme (see --running/--swim/--bike/--lifting/
    --note in :root). Applied via a `card-accent-{type}` modifier class
@@ -862,6 +873,10 @@ label {
 
 .card-accent-note {
   border-left-color: var(--note);
+}
+
+.card-accent-other {
+  border-left-color: var(--other);
 }
 
 .workout-stats {
@@ -1914,6 +1929,7 @@ button.link-button.danger {
 .calendar-cell-assignment-dot.is-complete.type-swim { background: var(--swim); }
 .calendar-cell-assignment-dot.is-complete.type-bike { background: var(--bike); }
 .calendar-cell-assignment-dot.is-complete.type-lifting { background: var(--lifting); }
+.calendar-cell-assignment-dot.is-complete.type-other { background: var(--other); }
 
 .calendar-cell-assignment-dot.is-pending {
   background: transparent;
@@ -1923,6 +1939,7 @@ button.link-button.danger {
 .calendar-cell-assignment-dot.is-pending.type-swim { border-color: var(--swim); }
 .calendar-cell-assignment-dot.is-pending.type-bike { border-color: var(--bike); }
 .calendar-cell-assignment-dot.is-pending.type-lifting { border-color: var(--lifting); }
+.calendar-cell-assignment-dot.is-pending.type-other { border-color: var(--other); }
 
 .calendar-cell-event-name {
   display: block;
@@ -2863,6 +2880,15 @@ button.link-button.danger {
   transition: height var(--transition-base), y var(--transition-base);
 }
 
+.progress-track.type-other {
+  stroke: color-mix(in srgb, var(--other) 16%, var(--surface));
+  stroke-width: 8;
+}
+.progress-fill.type-other {
+  stroke: var(--other);
+  stroke-width: 8;
+}
+
 /* --- Mobile layout audit: fixes for rows/headers that assume enough
    horizontal room for label + actions side by side, which breaks down
    below ~640px (squished buttons, overlapping text, horizontal overflow).
@@ -3090,6 +3116,7 @@ button.link-button.danger {
 .assignment-grid .grid-cell-filled.type-swim { border-left-color: var(--swim); }
 .assignment-grid .grid-cell-filled.type-bike { border-left-color: var(--bike); }
 .assignment-grid .grid-cell-filled.type-lifting { border-left-color: var(--lifting); }
+.assignment-grid .grid-cell-filled.type-other { border-left-color: var(--other); }
 
 .grid-cell-summary {
   font-size: 0.78rem;

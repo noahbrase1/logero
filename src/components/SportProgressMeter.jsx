@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { formatDistanceValue } from '../utils/format'
 
-const SPORT_LABELS = { running: 'Running', swim: 'Swimming', bike: 'Cycling' }
+const SPORT_LABELS = { running: 'Running', swim: 'Swimming', bike: 'Cycling', other: 'Other Aerobic' }
 
 // Oval running track — one closed stadium-shaped path, traced twice (a
 // muted track underneath, a colored fill on top). `pathLength="100"` lets
@@ -71,24 +71,53 @@ function BikeShape({ pct }) {
   )
 }
 
-const SHAPES_BY_SPORT = { running: RunningShape, swim: SwimShape, bike: BikeShape }
+// Heartbeat/pulse line — an ECG-style waveform, same pathLength stroke-
+// reveal technique as running/bike, filling left-to-right along the line
+// (its natural drawing direction) rather than around a loop or upward.
+function OtherShape({ pct }) {
+  const d = 'M10,36 L46,36 L54,14 L62,58 L70,10 L78,50 L86,36 L130,36'
+  return (
+    <svg viewBox="0 0 140 72" className="progress-shape" role="img" aria-hidden="true">
+      <path d={d} pathLength="100" fill="none" className="progress-track type-other" />
+      <path
+        d={d}
+        pathLength="100"
+        fill="none"
+        className="progress-fill type-other"
+        style={{ strokeDasharray: 100, strokeDashoffset: 100 - pct }}
+      />
+    </svg>
+  )
+}
 
-// One sport's weekly progress meter: shape + "current / goal mi" text.
-// `goalMiles` null/0 means no goal is set for this sport — the shape then
+const SHAPES_BY_SPORT = { running: RunningShape, swim: SwimShape, bike: BikeShape, other: OtherShape }
+
+// "Other Aerobic" tracks minutes, not miles (see weeklyMileage.js) — every
+// other sport tracks miles. Chosen by sport rather than a caller-supplied
+// prop, since the unit is inherent to the category, not a per-instance choice.
+function formatValue(sport, value) {
+  return sport === 'other' ? Math.round(value) : formatDistanceValue(value, 'miles')
+}
+
+// One sport's weekly progress meter: shape + "current / goal" text.
+// `goal` null/0 means no goal is set for this sport — the shape then
 // renders unfilled and the text drops the "/ goal" half, rather than hiding
-// the sport entirely (keeps all three meters always present, stable layout).
-export default function SportProgressMeter({ sport, currentMiles, goalMiles }) {
-  const hasGoal = Boolean(goalMiles && goalMiles > 0)
-  const pct = hasGoal ? Math.min(100, (currentMiles / goalMiles) * 100) : 0
+// the sport entirely (keeps all four meters always present, stable layout).
+export default function SportProgressMeter({ sport, current, goal }) {
+  const hasGoal = Boolean(goal && goal > 0)
+  const pct = hasGoal ? Math.min(100, (current / goal) * 100) : 0
   const Shape = SHAPES_BY_SPORT[sport]
-  const currentText = formatDistanceValue(currentMiles, 'miles')
-  const goalText = hasGoal ? formatDistanceValue(goalMiles, 'miles') : null
+  const unit = sport === 'other' ? 'min' : 'mi'
+  const currentText = formatValue(sport, current)
+  const goalText = hasGoal ? formatValue(sport, goal) : null
 
   return (
     <div className="progress-meter-card">
       <div className="progress-meter-label">{SPORT_LABELS[sport]}</div>
       <Shape pct={pct} />
-      <div className="progress-meter-value">{hasGoal ? `${currentText} / ${goalText} mi` : `${currentText} mi`}</div>
+      <div className="progress-meter-value">
+        {hasGoal ? `${currentText} / ${goalText} ${unit}` : `${currentText} ${unit}`}
+      </div>
     </div>
   )
 }

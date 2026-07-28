@@ -60,6 +60,7 @@ export default function WorkoutHistoryPage({ userId, title = 'Workout history', 
             <option value="swim">Swimming</option>
             <option value="bike">Cycling</option>
             <option value="lifting">Lifting</option>
+            <option value="other">Other Aerobic</option>
             <option value="note">Notes</option>
           </select>
         </label>
