@@ -12,12 +12,14 @@ function RunningShape({ pct }) {
   return (
     <svg viewBox="0 0 140 72" className="progress-shape" role="img" aria-hidden="true">
       <path d={d} pathLength="100" className="progress-track type-running" />
-      <path
-        d={d}
-        pathLength="100"
-        className="progress-fill type-running"
-        style={{ strokeDasharray: 100, strokeDashoffset: 100 - pct }}
-      />
+      {pct > 0 && (
+        <path
+          d={d}
+          pathLength="100"
+          className="progress-fill type-running"
+          style={{ strokeDasharray: 100, strokeDashoffset: 100 - pct }}
+        />
+      )}
     </svg>
   )
 }
@@ -60,13 +62,15 @@ function BikeShape({ pct }) {
   return (
     <svg viewBox="0 0 140 72" className="progress-shape" role="img" aria-hidden="true">
       <path d={d} pathLength="100" fill="none" className="progress-track type-bike" />
-      <path
-        d={d}
-        pathLength="100"
-        fill="none"
-        className="progress-fill type-bike"
-        style={{ strokeDasharray: 100, strokeDashoffset: 100 - pct }}
-      />
+      {pct > 0 && (
+        <path
+          d={d}
+          pathLength="100"
+          fill="none"
+          className="progress-fill type-bike"
+          style={{ strokeDasharray: 100, strokeDashoffset: 100 - pct }}
+        />
+      )}
     </svg>
   )
 }
@@ -79,13 +83,15 @@ function OtherShape({ pct }) {
   return (
     <svg viewBox="0 0 140 72" className="progress-shape" role="img" aria-hidden="true">
       <path d={d} pathLength="100" fill="none" className="progress-track type-other" />
-      <path
-        d={d}
-        pathLength="100"
-        fill="none"
-        className="progress-fill type-other"
-        style={{ strokeDasharray: 100, strokeDashoffset: 100 - pct }}
-      />
+      {pct > 0 && (
+        <path
+          d={d}
+          pathLength="100"
+          fill="none"
+          className="progress-fill type-other"
+          style={{ strokeDasharray: 100, strokeDashoffset: 100 - pct }}
+        />
+      )}
     </svg>
   )
 }
