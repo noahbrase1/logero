@@ -2751,6 +2751,140 @@ button.link-button.danger {
   color: var(--metric-event);
 }
 
+/* --- Weekly mileage: three per-sport progress meters (logged distance this
+   week vs. a coach-set goal) plus Mon-Sun week navigation. Track colors are
+   a light tint of that sport's own fixed color (--running/--swim/--bike),
+   not a neutral gray, so each meter still reads as "its" sport even at 0%
+   fill — same `type-{sport}` modifier convention as calendar-cell-miles
+   above and WorkoutTypeIcon. --- */
+
+.weekly-mileage-section {
+  margin-bottom: var(--space-8);
+}
+
+.weekly-mileage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.week-nav-label {
+  font-weight: 600;
+  color: var(--text);
+  min-width: 9rem;
+  text-align: center;
+}
+
+.progress-meter-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+
+.progress-meter-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.progress-meter-label {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.progress-meter-value {
+  font-weight: 800;
+  color: var(--text);
+  margin-top: var(--space-2);
+}
+
+.progress-shape {
+  width: 100%;
+  max-width: 150px;
+  height: auto;
+  margin: var(--space-2) 0;
+  display: block;
+}
+
+.progress-track,
+.progress-fill {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.progress-fill {
+  transition: stroke-dashoffset var(--transition-base);
+}
+
+.progress-track.type-running {
+  stroke: color-mix(in srgb, var(--running) 16%, var(--surface));
+}
+.progress-fill.type-running {
+  stroke: var(--running);
+}
+
+.progress-track.type-bike {
+  stroke: color-mix(in srgb, var(--bike) 16%, var(--surface));
+  stroke-width: 8;
+}
+.progress-fill.type-bike {
+  stroke: var(--bike);
+  stroke-width: 8;
+}
+
+/* Swim's shape is filled rects (a rising water level), not stroked paths. */
+.progress-track.type-swim {
+  fill: color-mix(in srgb, var(--swim) 14%, var(--surface));
+  stroke: color-mix(in srgb, var(--swim) 35%, var(--surface));
+  stroke-width: 2;
+}
+.progress-fill.type-swim {
+  fill: var(--swim);
+  transition: height var(--transition-base), y var(--transition-base);
+}
+
+.weekly-goal-form {
+  margin-top: var(--space-4);
+}
+
+.weekly-goal-form-row {
+  display: flex;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.weekly-goal-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.weekly-goal-input input[type='number'] {
+  width: 6rem;
+}
+
 /* --- Mobile layout audit: fixes for rows/headers that assume enough
    horizontal room for label + actions side by side, which breaks down
    below ~640px (squished buttons, overlapping text, horizontal overflow).

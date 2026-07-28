@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext'
 import EventCard from '../components/EventCard'
 import EventCalendar from '../components/EventCalendar'
 import EventForm from '../components/EventForm'
+import WeeklyMileageSection from '../components/WeeklyMileageSection'
 
 const emptyForm = () => ({ name: '', date: '', startTime: '', endTime: '', location: '', notes: '' })
 
@@ -204,6 +205,8 @@ export default function EventsPage() {
 
       {!loading && (
         <>
+          {isAthlete && <WeeklyMileageSection athleteId={user.id} isCoach={false} />}
+
           <div className="type-toggle">
             <button
               type="button"

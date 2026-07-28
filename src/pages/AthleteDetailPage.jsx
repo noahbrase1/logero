@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { fetchProfile } from '../lib/workouts'
+import WeeklyMileageSection from '../components/WeeklyMileageSection'
 import WorkoutHistoryPage from './WorkoutHistoryPage'
 
 export default function AthleteDetailPage() {
   const { id } = useParams()
+  const { profile: viewerProfile } = useAuth()
   const [profile, setProfile] = useState(null)
   const [error, setError] = useState('')
 
@@ -36,6 +39,7 @@ export default function AthleteDetailPage() {
           View calendar →
         </Link>
       </div>
+      <WeeklyMileageSection athleteId={id} isCoach={viewerProfile?.role === 'coach'} />
       <WorkoutHistoryPage userId={id} title={`${profile.name || 'Athlete'}'s workouts`} />
     </div>
   )

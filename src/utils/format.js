@@ -105,6 +105,13 @@ export function metersToMiles(meters) {
   return (Number(meters) || 0) / METERS_PER_MILE
 }
 
+// A weekly_goals row's own goal_unit converted to miles, matching how
+// sumLoggedDistanceMiles/sumAssignedDistanceMiles already fold running/swim/
+// bike distances down to one consistent unit for comparison/display.
+export function goalValueToMiles(value, unit) {
+  return metersToMiles(distanceToMeters(value, unit))
+}
+
 export function unitAbbrev(unit) {
   if (unit === 'meters') return 'm'
   if (unit === 'km') return 'km'
