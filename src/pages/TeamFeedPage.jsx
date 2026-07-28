@@ -4,6 +4,7 @@ import { fetchEvents } from '../lib/events'
 import WorkoutListItem from '../components/WorkoutListItem'
 import QuickNoteForm from '../components/QuickNoteForm'
 import MetricCardRow from '../components/MetricCardRow'
+import WeeklyMileageSection from '../components/WeeklyMileageSection'
 import { SkeletonList } from '../components/Skeleton'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -177,6 +178,8 @@ export default function TeamFeedPage() {
               </select>
             </label>
           </div>
+
+          {filterMode === 'athlete' && selectedAthleteId && <WeeklyMileageSection athleteId={selectedAthleteId} />}
 
           <h2 className="feed-view-heading">{viewHeading}</h2>
 
