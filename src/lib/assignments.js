@@ -105,12 +105,16 @@ export async function createAssignment({
   return assignment
 }
 
-export async function fetchAssignmentsForAthlete(athleteId) {
-  const { data, error } = await supabase
-    .from('assigned_workouts')
-    .select(ASSIGNMENT_SELECT)
-    .eq('athlete_id', athleteId)
-    .order('date', { ascending: false })
+// startDate/endDate are optional "YYYY-MM-DD" bounds (inclusive) — omitted
+// entirely, this behaves exactly as before (all-time, unfiltered). Mirrors
+// fetchAssignmentsForCoach's date-range shape, used by WeeklyMileageSection
+// to pull just the viewed week's assignments rather than an athlete's whole
+// history.
+export async function fetchAssignmentsForAthlete(athleteId, { startDate, endDate } = {}) {
+  let query = supabase.from('assigned_workouts').select(ASSIGNMENT_SELECT).eq('athlete_id', athleteId)
+  if (startDate) query = query.gte('date', startDate)
+  if (endDate) query = query.lte('date', endDate)
+  const { data, error } = await query.order('date', { ascending: false })
   if (error) throw error
   return data?.map(sortAssignment)
 }

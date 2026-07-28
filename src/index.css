@@ -2752,7 +2752,8 @@ button.link-button.danger {
 }
 
 /* --- Weekly mileage: three per-sport progress meters (logged distance this
-   week vs. a coach-set goal) plus Mon-Sun week navigation. Track colors are
+   week vs. that week's total assigned distance) plus Mon-Sun week
+   navigation. Track colors are
    a light tint of that sport's own fixed color (--running/--swim/--bike),
    not a neutral gray, so each meter still reads as "its" sport even at 0%
    fill — same `type-{sport}` modifier convention as calendar-cell-miles
@@ -2860,29 +2861,6 @@ button.link-button.danger {
 .progress-fill.type-swim {
   fill: var(--swim);
   transition: height var(--transition-base), y var(--transition-base);
-}
-
-.weekly-goal-form {
-  margin-top: var(--space-4);
-}
-
-.weekly-goal-form-row {
-  display: flex;
-  gap: var(--space-5);
-  flex-wrap: wrap;
-}
-
-.weekly-goal-input {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.weekly-goal-input input[type='number'] {
-  width: 6rem;
 }
 
 /* --- Mobile layout audit: fixes for rows/headers that assume enough

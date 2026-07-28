@@ -205,7 +205,7 @@ export default function EventsPage() {
 
       {!loading && (
         <>
-          {isAthlete && <WeeklyMileageSection athleteId={user.id} isCoach={false} />}
+          {isAthlete && <WeeklyMileageSection athleteId={user.id} />}
 
           <div className="type-toggle">
             <button
@@ -242,6 +242,10 @@ export default function EventsPage() {
                 ? `Viewing ${selectedAthlete?.name || 'this athlete'}'s calendar — you can create/edit their assignments below.`
                 : `Viewing ${selectedAthlete?.name || 'this athlete'}'s calendar — read-only.`}
             </p>
+          )}
+
+          {view === 'calendar' && (isCoach || isAdmin) && selectedAthleteId && (
+            <WeeklyMileageSection athleteId={selectedAthleteId} />
           )}
 
           {view === 'calendar' ? (
