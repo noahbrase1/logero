@@ -1892,6 +1892,10 @@ button.link-button.danger {
   color: var(--bike);
 }
 
+.calendar-cell-miles.is-actual.type-other {
+  color: var(--other);
+}
+
 .calendar-cell-events {
   display: flex;
   flex-direction: column;
