@@ -39,6 +39,44 @@ function sumSegmentsDistanceMiles(segments) {
   return Math.round(miles * 100) / 100
 }
 
+// Builds one assignment target segment into the SegmentEditor shape used to
+// prefill a new log — reads each rep's own target time back from its
+// `repsField` child rows (the per-rep assigned_*_segment_reps tables), the
+// same way assignmentToFormPayload does for the assignment-editing side.
+// Previously this duplicated the segment-level target_time_* across every
+// rep regardless of what was actually assigned per rep, so a 4x400m
+// assigned at 4 different times prefilled an athlete's log with the same
+// one time repeated 4 times. Falls back to that segment-level value (as a
+// single rep, repeated) only for an assignment saved before per-rep target
+// rows existed.
+function prefillSegmentFromTarget(seg, repsField, extraFields = {}) {
+  const repRows = seg[repsField] || []
+  const reps = seg.reps || 1
+  const repTimes =
+    repRows.length > 0
+      ? repRows.map((r) => ({
+          hours: r.target_time_hours || 0,
+          minutes: r.target_time_minutes || 0,
+          seconds: r.target_time_seconds || 0,
+          ...extraFields,
+        }))
+      : Array.from({ length: reps }, () => ({
+          hours: seg.target_time_hours || 0,
+          minutes: seg.target_time_minutes || 0,
+          seconds: seg.target_time_seconds || 0,
+          ...extraFields,
+        }))
+
+  return {
+    key: crypto.randomUUID(),
+    label: seg.label || '',
+    distanceValue: String(seg.distance_value),
+    distanceUnit: seg.distance_unit,
+    reps,
+    repTimes,
+  }
+}
+
 // The actual create/edit workout form — extracted from what used to be the
 // standalone LogWorkoutPage (still exists at /log and /edit/:workoutId as a
 // thin wrapper around this, in case anything still needs a bare URL) so it
@@ -232,93 +270,27 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
     if (assignment.type === 'running') {
       const targetSegments = assignment.assigned_running_segments || []
       if (targetSegments.length > 0) {
-        setSegments(
-          targetSegments.map((seg) => {
-            const repTime = {
-              hours: seg.target_time_hours || 0,
-              minutes: seg.target_time_minutes || 0,
-              seconds: seg.target_time_seconds || 0,
-            }
-            const reps = seg.reps || 1
-            return {
-              key: crypto.randomUUID(),
-              label: seg.label || '',
-              distanceValue: String(seg.distance_value),
-              distanceUnit: seg.distance_unit,
-              reps,
-              repTimes: Array.from({ length: reps }, () => ({ ...repTime })),
-            }
-          })
-        )
+        setSegments(targetSegments.map((seg) => prefillSegmentFromTarget(seg, 'assigned_running_segment_reps')))
         setTotalDurationManual(false)
       }
     } else if (assignment.type === 'swim') {
       const targetSegments = assignment.assigned_swim_segments || []
       if (targetSegments.length > 0) {
-        setSwimSegments(
-          targetSegments.map((seg) => {
-            const repTime = {
-              hours: seg.target_time_hours || 0,
-              minutes: seg.target_time_minutes || 0,
-              seconds: seg.target_time_seconds || 0,
-            }
-            const reps = seg.reps || 1
-            return {
-              key: crypto.randomUUID(),
-              label: seg.label || '',
-              distanceValue: String(seg.distance_value),
-              distanceUnit: seg.distance_unit,
-              reps,
-              repTimes: Array.from({ length: reps }, () => ({ ...repTime })),
-            }
-          })
-        )
+        setSwimSegments(targetSegments.map((seg) => prefillSegmentFromTarget(seg, 'assigned_swim_segment_reps')))
       }
     } else if (assignment.type === 'bike') {
       const targetSegments = assignment.assigned_bike_segments || []
       if (targetSegments.length > 0) {
         setBikeSegments(
-          targetSegments.map((seg) => {
-            const repTime = {
-              hours: seg.target_time_hours || 0,
-              minutes: seg.target_time_minutes || 0,
-              seconds: seg.target_time_seconds || 0,
-              avgWatts: '',
-              avgCadence: '',
-            }
-            const reps = seg.reps || 1
-            return {
-              key: crypto.randomUUID(),
-              label: seg.label || '',
-              distanceValue: String(seg.distance_value),
-              distanceUnit: seg.distance_unit,
-              reps,
-              repTimes: Array.from({ length: reps }, () => ({ ...repTime })),
-            }
-          })
+          targetSegments.map((seg) =>
+            prefillSegmentFromTarget(seg, 'assigned_bike_segment_reps', { avgWatts: '', avgCadence: '' })
+          )
         )
       }
     } else if (assignment.type === 'other') {
       const targetSegments = assignment.assigned_other_segments || []
       if (targetSegments.length > 0) {
-        setOtherSegments(
-          targetSegments.map((seg) => {
-            const repTime = {
-              hours: seg.target_time_hours || 0,
-              minutes: seg.target_time_minutes || 0,
-              seconds: seg.target_time_seconds || 0,
-            }
-            const reps = seg.reps || 1
-            return {
-              key: crypto.randomUUID(),
-              label: seg.label || '',
-              distanceValue: String(seg.distance_value),
-              distanceUnit: seg.distance_unit,
-              reps,
-              repTimes: Array.from({ length: reps }, () => ({ ...repTime })),
-            }
-          })
-        )
+        setOtherSegments(targetSegments.map((seg) => prefillSegmentFromTarget(seg, 'assigned_other_segment_reps')))
         setTotalDurationManual(false)
       }
     } else {

@@ -6,15 +6,26 @@
 // each athlete's row individually; the grouping is a client-side PDF-review
 // step only and never writes anything back to assigned_workouts.
 
-function segmentSignature(seg) {
+import { ASSIGNED_REPS_FIELD_BY_TYPE } from './format'
+
+// Includes every rep's own target time (not just the segment-level
+// target_time_* fallback, which only ever reflects rep 1 — see
+// src/lib/assignments.js's insertAssignedSegmentsWithReps) so two
+// assignments whose later reps differ are never treated as "the same
+// workout" just because their first rep happens to match.
+function segmentSignature(seg, repsField) {
+  const repRows = repsField ? seg[repsField] || [] : []
+  const repTargets =
+    repRows.length > 0
+      ? repRows.map((r) => `${r.rep_number}:${r.target_time_hours || 0}:${r.target_time_minutes || 0}:${r.target_time_seconds || 0}`)
+      : [`1:${seg.target_time_hours || 0}:${seg.target_time_minutes || 0}:${seg.target_time_seconds || 0}`]
+
   return {
     label: seg.label || '',
     distance_value: Number(seg.distance_value) || 0,
     distance_unit: seg.distance_unit,
     reps: seg.reps || 1,
-    target_time_hours: seg.target_time_hours || 0,
-    target_time_minutes: seg.target_time_minutes || 0,
-    target_time_seconds: seg.target_time_seconds || 0,
+    repTargets,
   }
 }
 
@@ -34,9 +45,10 @@ export function assignmentSignature(assignment) {
   return JSON.stringify({
     type: assignment.type,
     notes: (assignment.notes || '').trim(),
-    running: (assignment.assigned_running_segments || []).map(segmentSignature),
-    swim: (assignment.assigned_swim_segments || []).map(segmentSignature),
-    bike: (assignment.assigned_bike_segments || []).map(segmentSignature),
+    running: (assignment.assigned_running_segments || []).map((s) => segmentSignature(s, ASSIGNED_REPS_FIELD_BY_TYPE.running)),
+    swim: (assignment.assigned_swim_segments || []).map((s) => segmentSignature(s, ASSIGNED_REPS_FIELD_BY_TYPE.swim)),
+    bike: (assignment.assigned_bike_segments || []).map((s) => segmentSignature(s, ASSIGNED_REPS_FIELD_BY_TYPE.bike)),
+    other: (assignment.assigned_other_segments || []).map((s) => segmentSignature(s, ASSIGNED_REPS_FIELD_BY_TYPE.other)),
     lifting: (assignment.assigned_lifting_targets || []).map(liftingSignature),
   })
 }
