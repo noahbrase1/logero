@@ -364,19 +364,23 @@ export function sumAssignedTimeSeconds(assignment) {
 // meant to be joined with " · " by the caller. Average pace is only
 // included for running: swim/bike don't have a single meaningful overall
 // pace figure in this app (see WorkoutCard's existing per-segment summary
-// comments), so their headline is just distance + time. A blended average
+// comments), so their headline is just distance + time. A blended total
 // across more than one distinct segment (e.g. a warm-up mile plus a faster
-// main set) is a misleading single number, so it's only shown when there's
-// at most one segment — with several segments, each one's own average pace
-// is what the per-segment breakdown (SegmentSummary) already shows instead.
+// main set) — whether that's time or pace — is a misleading single number,
+// so both are only shown when there's at most one segment; with several
+// segments the headline is distance-only, and each segment's own time(s)
+// and average pace are what the per-segment breakdown (SegmentSummary)
+// shows instead.
 export function loggedWorkoutHeadline(workout) {
   const distance = loggedDistanceSummary(workout)
   const seconds = sumLoggedTimeSeconds(workout)
-  const segments = workout?.running_segments || []
+  const segmentsField = LOGGED_SEGMENTS_FIELD_BY_TYPE[workout?.type]
+  const segments = segmentsField ? workout?.[segmentsField] || [] : []
+  const singleSegment = segments.length <= 1
   const parts = []
   if (distance) parts.push(`${formatDistanceValue(distance.value, distance.unit)}${unitAbbrev(distance.unit)}`)
-  if (seconds > 0) parts.push(secondsToClock(seconds))
-  if (workout?.type === 'running' && distance && seconds > 0 && segments.length <= 1) {
+  if (seconds > 0 && singleSegment) parts.push(secondsToClock(seconds))
+  if (workout?.type === 'running' && distance && seconds > 0 && singleSegment) {
     const pace = calculatePace(sumLoggedDistanceMiles(workout), seconds)
     if (pace) parts.push(`${pace} avg`)
   }
@@ -386,15 +390,18 @@ export function loggedWorkoutHeadline(workout) {
 // The "what the coach prescribed" headline for a running/swim/bike
 // assignment — same shape as loggedWorkoutHeadline, computed from target
 // segments instead of logged ones, including the same single-vs-multiple-
-// segment rule for whether an overall average pace is meaningful.
+// segment rule for whether an overall total time/average pace is
+// meaningful.
 export function assignedWorkoutHeadline(assignment) {
   const distance = assignedDistanceSummary(assignment)
   const seconds = sumAssignedTimeSeconds(assignment)
-  const segments = assignment?.assigned_running_segments || []
+  const segmentsField = ASSIGNED_SEGMENTS_FIELD_BY_TYPE[assignment?.type]
+  const segments = segmentsField ? assignment?.[segmentsField] || [] : []
+  const singleSegment = segments.length <= 1
   const parts = []
   if (distance) parts.push(`${formatDistanceValue(distance.value, distance.unit)}${unitAbbrev(distance.unit)}`)
-  if (seconds > 0) parts.push(secondsToClock(seconds))
-  if (assignment?.type === 'running' && distance && seconds > 0 && segments.length <= 1) {
+  if (seconds > 0 && singleSegment) parts.push(secondsToClock(seconds))
+  if (assignment?.type === 'running' && distance && seconds > 0 && singleSegment) {
     const pace = calculatePace(sumAssignedDistanceMiles(assignment), seconds)
     if (pace) parts.push(`${pace} avg`)
   }
