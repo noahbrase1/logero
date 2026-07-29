@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { resolveInviteCode } from '../lib/teams'
+import { clearPendingInvite } from '../utils/pendingInvite'
 import RunnerSprite from '../components/RunnerSprite'
 
 export default function SignUpPage() {
@@ -71,6 +72,10 @@ export default function SignUpPage() {
       setError(error.message)
       return
     }
+    // Signed up successfully against this team — any saved pending invite
+    // (see src/utils/pendingInvite.js) has now done its job and shouldn't
+    // linger to interfere with a future, unrelated signup on this device.
+    clearPendingInvite()
     if (data.session) {
       navigate('/')
     } else {

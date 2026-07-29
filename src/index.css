@@ -381,6 +381,42 @@ label {
   color: #c4b5fd;
 }
 
+/* JoinPage's combined install+signup card — wider than the plain
+   .auth-card default (380px) since it stacks two action sub-cards, not a
+   single form. */
+.join-card {
+  max-width: 480px;
+}
+
+.join-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.join-action-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+
+.join-action-card h2 {
+  font-size: 1rem;
+  color: #f5f4f7;
+  margin: 0 0 0.5rem;
+}
+
+.install-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #c9c5d1;
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
 .team-status-banner {
   padding: 0.65rem 1.25rem;
   font-size: 0.85rem;

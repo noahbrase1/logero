@@ -39,8 +39,12 @@ export default function TeamSettingsPage() {
       .catch(() => {}) // non-critical — the invite panel just won't render
   }, [profile?.team_id])
 
+  // /join (not /signup) is the link coaches are meant to share going
+  // forward — it's the combined install-the-app + create-your-account flow,
+  // and it's the one that survives an athlete installing the PWA before
+  // signing up (see src/utils/pendingInvite.js).
   function inviteLink() {
-    return team ? `${window.location.origin}/signup?invite=${team.invite_code}` : ''
+    return team ? `${window.location.origin}/join?invite=${team.invite_code}` : ''
   }
 
   async function handleCopyInvite() {
@@ -100,7 +104,10 @@ export default function TeamSettingsPage() {
       {team && (
         <div className="theme-settings">
           <h2 className="events-section-heading">Team invite link</h2>
-          <p className="page-subtitle">Share this link so athletes and coaches can join {team.name}.</p>
+          <p className="page-subtitle">
+            Share this link so athletes and coaches can install the app and join {team.name} — it works whether they
+            install first and sign up later, or sign up right away.
+          </p>
           <div className="form-row">
             <input type="text" readOnly value={inviteLink()} onFocus={(e) => e.target.select()} />
             <button type="button" className="secondary" onClick={handleCopyInvite}>

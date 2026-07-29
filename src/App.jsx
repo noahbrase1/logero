@@ -1,11 +1,14 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
+import { getPendingInvite } from './utils/pendingInvite'
 import NavBar from './components/NavBar'
 import SuperAdminHeader from './components/SuperAdminHeader'
 import TeamStatusBanner from './components/TeamStatusBanner'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
 import CreateTeamPage from './pages/CreateTeamPage'
+import JoinPage from './pages/JoinPage'
+import InstallPage from './pages/InstallPage'
 import PendingPage from './pages/PendingPage'
 import RemovedPage from './pages/RemovedPage'
 import LogWorkoutPage from './pages/LogWorkoutPage'
@@ -52,10 +55,25 @@ export default function App() {
   if (!user) {
     return (
       <Routes>
+        {/* An installed PWA's start_url is always "/" (see
+            public/manifest.json) — someone who visited /join?invite=CODE,
+            installed to their home screen, and only opens the app later
+            (or after fully closing it) loses that query string the moment
+            they relaunch from the icon. LoggedOutEntry recovers a still-
+            valid saved invite code (see src/utils/pendingInvite.js) and
+            routes straight to signup with it applied; the catch-all below
+            shares the same recovery for any other unmatched path. Explicit
+            routes like /login are deliberately NOT covered by this check —
+            an existing user consciously navigating to /login shouldn't be
+            hijacked into signup just because some earlier invite code is
+            still sitting in this browser's storage. */}
+        <Route path="/" element={<LoggedOutEntry />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
         <Route path="/create-team" element={<CreateTeamPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="/join" element={<JoinPage />} />
+        <Route path="/install" element={<InstallPage />} />
+        <Route path="*" element={<LoggedOutEntry />} />
       </Routes>
     )
   }
@@ -145,4 +163,13 @@ export default function App() {
       </main>
     </>
   )
+}
+
+// The logged-out landing spot for "/" and any unmatched path — see the
+// comment above its routes for why this exists instead of a plain
+// `<Navigate to="/login" />`.
+function LoggedOutEntry() {
+  const code = getPendingInvite()
+  if (code) return <Navigate to={`/signup?invite=${encodeURIComponent(code)}`} replace />
+  return <Navigate to="/login" replace />
 }
