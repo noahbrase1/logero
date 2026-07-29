@@ -23,12 +23,28 @@ import AccountSettingsPage from './pages/AccountSettingsPage'
 import SuperAdminPage from './pages/SuperAdminPage'
 
 export default function App() {
-  const { user, role, isSuperAdmin, loading } = useAuth()
+  const { user, role, isSuperAdmin, loading, authError, retry } = useAuth()
 
   if (loading) {
     return (
       <div className="full-page-loader">
         <span className="spinner" /> Loading…
+      </div>
+    )
+  }
+
+  // The session check timed out (see AuthContext's SESSION_TIMEOUT_MS) and
+  // there's no already-known session to fall back on — rather than bouncing
+  // straight to the login page (which would force a real re-login even if
+  // this was just a transient resume-from-background hiccup), offer a retry
+  // that just re-checks the existing browser session first.
+  if (authError && !user) {
+    return (
+      <div className="full-page-loader full-page-loader-error">
+        <p>Something went wrong loading this.</p>
+        <button type="button" onClick={retry}>
+          Tap to retry
+        </button>
       </div>
     )
   }

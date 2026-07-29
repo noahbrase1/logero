@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { IconPhoto, IconX } from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
@@ -13,6 +13,8 @@ import {
   uploadMessageImage,
 } from '../lib/messages'
 import { markConversationSeen } from '../utils/conversationReadState'
+import { onAppResume } from '../utils/appResume'
+import { withTimeout } from '../utils/withTimeout'
 import GroupManageControls from './GroupManageControls'
 
 export default function ConversationView({ conversation, onConversationChanged }) {
@@ -31,41 +33,70 @@ export default function ConversationView({ conversation, onConversationChanged }
   const [lightboxUrl, setLightboxUrl] = useState(null)
   const bottomRef = useRef(null)
   const fileInputRef = useRef(null)
+  // Shared between loadMessages and the effect's cleanup — reset to false
+  // each time the effect (re-)runs, so a Retry-button click (or a resume
+  // firing after cleanup already ran) never writes state into an unmounted
+  // component.
+  const cancelledRef = useRef(false)
 
   const nameFor = (senderId) => {
     if (senderId === user.id) return 'You'
     return conversation.participants.find((p) => p.user_id === senderId)?.profiles?.name || 'Unknown'
   }
 
-  useEffect(() => {
-    let cancelled = false
+  // A timeout wrapper so a dead connection (most commonly: this tab was
+  // backgrounded/suspended for a while and the request never actually
+  // settles once resumed) shows a retryable error instead of hanging the
+  // spinner forever — see src/utils/withTimeout.js. Also reused directly by
+  // the "Retry" button below and by the resume-recovery effect.
+  const loadMessages = useCallback(() => {
     setLoading(true)
     setError('')
-    fetchMessages(conversation.id)
+    withTimeout(fetchMessages(conversation.id), 9000)
       .then((data) => {
-        if (!cancelled) {
+        if (!cancelledRef.current) {
           setMessages(data)
           const last = data[data.length - 1]
           markConversationSeen(user.id, conversation.id, last ? last.created_at : new Date().toISOString())
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message)
+        if (!cancelledRef.current) setError(err.message)
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelledRef.current) setLoading(false)
       })
+  }, [conversation.id, user.id])
 
-    const unsubscribe = subscribeToConversation(conversation.id, (newMessage) => {
+  useEffect(() => {
+    cancelledRef.current = false
+    loadMessages()
+
+    function handleRealtimeInsert(newMessage) {
       setMessages((prev) => (prev.some((m) => m.id === newMessage.id) ? prev : [...prev, newMessage]))
       markConversationSeen(user.id, conversation.id, newMessage.created_at)
+    }
+
+    let unsubscribe = subscribeToConversation(conversation.id, handleRealtimeInsert)
+
+    // A phone backgrounding this tab for a while can silently kill both the
+    // realtime websocket and any in-flight fetch without the app ever
+    // seeing a clean close/error event — resuming re-fetches the message
+    // list (in case anything arrived while disconnected) and tears down +
+    // recreates the realtime subscription outright, rather than trusting a
+    // channel that may be a dead connection wearing a "subscribed" label.
+    const stopResumeListener = onAppResume(() => {
+      loadMessages()
+      unsubscribe()
+      unsubscribe = subscribeToConversation(conversation.id, handleRealtimeInsert)
     })
 
     return () => {
-      cancelled = true
+      cancelledRef.current = true
       unsubscribe()
+      stopResumeListener()
     }
-  }, [conversation.id])
+  }, [conversation.id, loadMessages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -194,7 +225,14 @@ export default function ConversationView({ conversation, onConversationChanged }
           <div ref={bottomRef} />
         </div>
 
-        {error && <p className="form-error">{error}</p>}
+        {error && (
+          <p className="form-error">
+            {error}{' '}
+            <button type="button" className="link-button" onClick={loadMessages}>
+              Retry
+            </button>
+          </p>
+        )}
 
         {canSend ? (
           <form className="message-input-row" onSubmit={handleSend}>

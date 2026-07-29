@@ -10,6 +10,8 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { formatDateHeading } from '../utils/format'
 import { toDateStr } from '../utils/week'
+import { onAppResume } from '../utils/appResume'
+import { withTimeout } from '../utils/withTimeout'
 
 // The main list below shows exactly one filtered view at a time — by date
 // (defaulting to today) or by athlete — rather than every recent day
@@ -40,9 +42,14 @@ export default function TeamFeedPage() {
   const [viewLoading, setViewLoading] = useState(true)
   const [viewError, setViewError] = useState('')
 
+  // Wrapped in withTimeout so a dead connection (most commonly: this tab
+  // was backgrounded/suspended for a while and the request never actually
+  // settles once resumed) shows a retryable error instead of an indefinite
+  // spinner — see src/utils/withTimeout.js.
   function load() {
     setLoading(true)
-    Promise.all([fetchRecentTeamFeed(60), fetchEvents(), fetchApprovedAthletes()])
+    setError('')
+    withTimeout(Promise.all([fetchRecentTeamFeed(60), fetchEvents(), fetchApprovedAthletes()]), 9000)
       .then(([workoutData, eventData, athleteData]) => {
         setRecentWorkouts(workoutData)
         setEvents(eventData)
@@ -52,7 +59,14 @@ export default function TeamFeedPage() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [])
+  useEffect(() => {
+    load()
+    // Re-fetch the instant the app is back in the foreground after being
+    // backgrounded — a phone suspending this tab for a while can otherwise
+    // leave the feed stale, or the initial load stuck, with nothing to
+    // recover it short of a full close/reopen. See src/utils/appResume.js.
+    return onAppResume(load)
+  }, [])
 
   function refreshView() {
     setViewLoading(true)
@@ -60,13 +74,16 @@ export default function TeamFeedPage() {
     const request = filterMode === 'athlete' && selectedAthleteId
       ? fetchWorkouts({ userId: selectedAthleteId })
       : fetchTeamWorkoutsByDate(selectedDate)
-    request
+    withTimeout(request, 9000)
       .then(setViewWorkouts)
       .catch((err) => setViewError(err.message))
       .finally(() => setViewLoading(false))
   }
 
-  useEffect(refreshView, [filterMode, selectedDate, selectedAthleteId])
+  useEffect(() => {
+    refreshView()
+    return onAppResume(refreshView)
+  }, [filterMode, selectedDate, selectedAthleteId])
 
   const metrics = useMemo(() => {
     const weekAgo = new Date()
@@ -150,7 +167,14 @@ export default function TeamFeedPage() {
       )}
 
       {loading && <SkeletonList count={4} />}
-      {error && <p className="form-error">{error}</p>}
+      {error && (
+        <p className="form-error">
+          {error}{' '}
+          <button type="button" className="link-button" onClick={load}>
+            Retry
+          </button>
+        </p>
+      )}
 
       {!loading && !error && (
         <>
@@ -184,7 +208,14 @@ export default function TeamFeedPage() {
           <h2 className="feed-view-heading">{viewHeading}</h2>
 
           {viewLoading && <SkeletonList count={4} />}
-          {viewError && <p className="form-error">{viewError}</p>}
+          {viewError && (
+            <p className="form-error">
+              {viewError}{' '}
+              <button type="button" className="link-button" onClick={refreshView}>
+                Retry
+              </button>
+            </p>
+          )}
           {!viewLoading && !viewError && viewWorkouts.length === 0 && <p className="empty-state">{viewEmptyMessage}</p>}
 
           <div className="workout-list">

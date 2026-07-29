@@ -5,6 +5,8 @@ import { fetchAssignmentsForAthlete } from '../lib/assignments'
 import { fetchApprovedAthletes, fetchWorkouts } from '../lib/workouts'
 import { SkeletonList } from '../components/Skeleton'
 import { useToast } from '../context/ToastContext'
+import { onAppResume } from '../utils/appResume'
+import { withTimeout } from '../utils/withTimeout'
 import EventCard from '../components/EventCard'
 import EventCalendar from '../components/EventCalendar'
 import EventForm from '../components/EventForm'
@@ -43,10 +45,14 @@ export default function EventsPage() {
 
   // Events (+ the athlete picker's roster, for coach/admin) load once on
   // mount — unrelated to which athlete's assignments/logs are shown below.
+  // Wrapped in withTimeout so a dead connection (most commonly: this tab
+  // was backgrounded/suspended for a while) shows a retryable error instead
+  // of an indefinite spinner — see src/utils/withTimeout.js.
   function loadBase() {
     setLoading(true)
+    setError('')
     const requests = [fetchEvents(), isCoach || isAdmin ? fetchApprovedAthletes() : Promise.resolve([])]
-    Promise.all(requests)
+    withTimeout(Promise.all(requests), 9000)
       .then(([eventData, athleteData]) => {
         setEvents(eventData)
         setAthletes(athleteData)
@@ -55,7 +61,14 @@ export default function EventsPage() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(loadBase, [])
+  useEffect(() => {
+    loadBase()
+    // Re-fetch the instant the app is back in the foreground after being
+    // backgrounded — a phone suspending this tab for a while can otherwise
+    // leave this page's data stale, or the initial load stuck, with no way
+    // to recover short of a full close/reopen. See src/utils/appResume.js.
+    return onAppResume(loadBase)
+  }, [])
 
   // Assignments + logged workouts for whichever user's calendar is being
   // shown (the athlete themself, or a coach/admin's selected athlete), so
@@ -70,7 +83,7 @@ export default function EventsPage() {
       return
     }
     setAthleteDataLoading(true)
-    Promise.all([fetchAssignmentsForAthlete(targetUserId), fetchWorkouts({ userId: targetUserId })])
+    withTimeout(Promise.all([fetchAssignmentsForAthlete(targetUserId), fetchWorkouts({ userId: targetUserId })]), 9000)
       .then(([assignmentData, workouts]) => {
         setAssignments(assignmentData)
         const map = {}
@@ -81,12 +94,16 @@ export default function EventsPage() {
         })
         setWorkoutByAssignment(map)
         setWorkoutsByDate(byDate)
+        setError('')
       })
       .catch((err) => setError(err.message))
       .finally(() => setAthleteDataLoading(false))
   }
 
-  useEffect(loadAthleteData, [targetUserId])
+  useEffect(() => {
+    loadAthleteData()
+    return onAppResume(loadAthleteData)
+  }, [targetUserId])
 
   const today = new Date().toISOString().slice(0, 10)
   const upcoming = events.filter((e) => e.date >= today)
@@ -201,7 +218,14 @@ export default function EventsPage() {
       )}
 
       {loading && <SkeletonList count={3} />}
-      {error && !formOpen && !editingId && <p className="form-error">{error}</p>}
+      {error && !formOpen && !editingId && (
+        <p className="form-error">
+          {error}{' '}
+          <button type="button" className="link-button" onClick={loadBase}>
+            Retry
+          </button>
+        </p>
+      )}
 
       {!loading && (
         <>

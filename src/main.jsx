@@ -7,16 +7,16 @@ import { AuthProvider } from './context/AuthContext.jsx'
 import { ThemeProvider } from './context/ThemeContext.jsx'
 import { ToastProvider } from './context/ToastContext.jsx'
 import { APP_NAME } from './config.js'
+import UpdateBanner from './components/UpdateBanner.jsx'
 
 document.title = APP_NAME
 
-// Gated to production builds — registering against Vite's dev server would
-// have the service worker fight HMR for control of module requests.
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch((err) => console.error('SW registration failed', err))
-  })
-}
+// Service worker registration (gated to production builds — registering
+// against Vite's dev server would have the service worker fight HMR for
+// control of module requests) plus new-version detection now lives in
+// UpdateBanner, mounted below alongside <App /> rather than gated behind
+// auth/role, since an update can be found at any time — even on the login
+// page.
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -24,6 +24,7 @@ createRoot(document.getElementById('root')).render(
       <AuthProvider>
         <ThemeProvider>
           <ToastProvider>
+            <UpdateBanner />
             <App />
           </ToastProvider>
         </ThemeProvider>

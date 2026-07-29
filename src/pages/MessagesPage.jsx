@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { fetchAllTeamConversations, fetchConversations, fetchLastMessagesForConversations } from '../lib/messages'
+import { onAppResume } from '../utils/appResume'
+import { withTimeout } from '../utils/withTimeout'
 import ConversationList from '../components/ConversationList'
 import ConversationView from '../components/ConversationView'
 
@@ -39,12 +41,18 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  // Wrapped in withTimeout so a dead connection (most commonly: this tab
+  // was backgrounded/suspended for a while) shows a retryable error instead
+  // of an indefinite spinner — see src/utils/withTimeout.js.
   const loadConversations = useCallback(async () => {
     try {
-      const data = isAdmin ? await fetchAllTeamConversations(user.id) : await fetchConversations(user.id)
-      const lastMessages = await fetchLastMessagesForConversations(data.map((c) => c.id))
+      const data = isAdmin
+        ? await withTimeout(fetchAllTeamConversations(user.id), 9000)
+        : await withTimeout(fetchConversations(user.id), 9000)
+      const lastMessages = await withTimeout(fetchLastMessagesForConversations(data.map((c) => c.id)), 9000)
       const withPreviews = sortByRecency(data.map((c) => ({ ...c, lastMessage: lastMessages[c.id] || null })))
       setConversations(withPreviews)
+      setError('')
       return withPreviews
     } catch (err) {
       setError(err.message)
@@ -56,6 +64,11 @@ export default function MessagesPage() {
 
   useEffect(() => {
     loadConversations()
+    // A phone backgrounding this tab for a while can leave the conversation
+    // list (and any preview data) stale, or leave the initial load stuck if
+    // the connection died mid-request — re-fetch the instant the app is
+    // back in the foreground rather than waiting for the user to notice.
+    return onAppResume(loadConversations)
   }, [loadConversations])
 
   async function handleStartedDM(conversationId) {
@@ -83,7 +96,16 @@ export default function MessagesPage() {
       </div>
     )
   }
-  if (error) return <div className="page form-error">{error}</div>
+  if (error) {
+    return (
+      <div className="page form-error">
+        {error}{' '}
+        <button type="button" className="link-button" onClick={loadConversations}>
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   // Jumping straight into the team channel is a nice default on desktop,
   // where the conversation list stays visible alongside it regardless. On
