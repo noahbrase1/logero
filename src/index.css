@@ -2102,6 +2102,21 @@ button.link-button.danger {
   padding: 1.1rem 1.25rem;
 }
 
+/* Wraps a WorkoutCard (already fully card-styled on its own) plus the
+   calendar's log/assignment action buttons — deliberately no border/
+   background of its own (so the card chrome isn't doubled up) and
+   deliberately not a flex container (a status badge/paragraph before the
+   card must stay their natural content width, while the card and action
+   button below still need to fill the full row width as plain block
+   children do). */
+.calendar-assignment-entry > .status-badge {
+  margin-bottom: 0.5rem;
+}
+
+.calendar-assignment-entry > .workout-notes {
+  margin-bottom: 0.75rem;
+}
+
 .assignment-card-header {
   display: flex;
   justify-content: space-between;

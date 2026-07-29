@@ -20,21 +20,27 @@ import WorkoutTypeIcon from './WorkoutTypeIcon'
 
 // assigned_workouts' target-segments field, per workout type — running/swim/
 // bike/other (lifting keeps its existing TargetVsActual comparison instead,
-// see LiftingBody below).
-const ASSIGNED_SEGMENTS_FIELD_BY_TYPE = {
+// see LiftingBody below). Exported so AssignedWorkoutSummary (the athlete
+// calendar's not-yet-logged twin of the "Prescribed" block below) can render
+// the exact same per-segment shape without duplicating this map.
+export const ASSIGNED_SEGMENTS_FIELD_BY_TYPE = {
   running: 'assigned_running_segments',
   swim: 'assigned_swim_segments',
   bike: 'assigned_bike_segments',
   other: 'assigned_other_segments',
 }
 
-export default function WorkoutCard({ workout, showAthleteName = false }) {
+// `hideEditLink` lets a caller that already provides its own edit affordance
+// (the athlete calendar's in-modal "Edit workout" button, see
+// EventCalendar.jsx) suppress this card's own full-page Edit link, so a day
+// panel doesn't offer two different ways to edit the same log.
+export default function WorkoutCard({ workout, showAthleteName = false, hideEditLink = false }) {
   const { user, profile } = useAuth()
   const isRunning = workout.type === 'running'
   const isSwim = workout.type === 'swim'
   const isBike = workout.type === 'bike'
   const isOther = workout.type === 'other'
-  const canEdit = profile?.role === 'athlete' && user?.id === workout.user_id
+  const canEdit = profile?.role === 'athlete' && user?.id === workout.user_id && !hideEditLink
 
   return (
     <article className={`workout-card card-accent-${workout.type}`}>
@@ -211,7 +217,7 @@ function liftingExerciseSummary(ex) {
   return `${ex.sets ?? '—'}×${ex.reps ?? '—'} @ ${ex.weight ? `${ex.weight} lb` : '—'}`
 }
 
-function liftingTargetSummary(t) {
+export function liftingTargetSummary(t) {
   return `${t.target_sets ?? '—'}×${t.target_reps ?? '—'} @ ${t.target_weight ? `${t.target_weight} lb` : '—'}`
 }
 
@@ -300,7 +306,7 @@ function OtherSegmentSummary({ segment }) {
 // gets a pace (formatTargetPace already picks continuous-vs-interval
 // phrasing); swim/bike show the raw target time instead, same as
 // TargetVsActual's existing swim/bike target rows.
-function PrescribedSegmentSummary({ seg, type }) {
+export function PrescribedSegmentSummary({ seg, type }) {
   const reps = seg.reps || 1
   const targetSeconds = hmsToSeconds({
     hours: seg.target_time_hours,

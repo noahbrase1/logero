@@ -10,7 +10,8 @@ import {
 } from '../utils/format'
 import { toDateStr } from '../utils/week'
 import EventCard from './EventCard'
-import TargetVsActual from './TargetVsActual'
+import WorkoutCard from './WorkoutCard'
+import AssignedWorkoutSummary from './AssignedWorkoutSummary'
 import LogWorkoutForm from './LogWorkoutForm'
 import CalendarAssignmentModal from './CalendarAssignmentModal'
 import Modal from './Modal'
@@ -80,7 +81,10 @@ function dayDistance(dateStr, dayAssignments, workoutsByDate) {
 // is a no-op for them). `assignments` is the viewing athlete's own
 // assigned_workouts rows (with nested segment/target children);
 // `workoutByAssignment` maps assignment id -> their matching logged workout
-// (if any), for TargetVsActual. `canLog` (athlete-only) lets every day be
+// (if any) — when present, the day panel renders it via WorkoutCard (same
+// component as Team Logs/History/AthleteDetail); when absent, it renders
+// the assignment's own AssignedWorkoutSummary instead. `canLog` (athlete-
+// only) lets every day be
 // selected, not just ones with events/assignments, and switches on the
 // day-panel's unified log/edit action; `workoutsByDate` (keyed by "YYYY-MM-DD")
 // is used to route that action to editing an existing log instead of
@@ -355,48 +359,65 @@ export default function EventCalendar({
           )}
           {selectedAssignments.length > 0 ? (
             <div className="assignments-list">
-              {selectedAssignments.map((a, i) => (
-                <div key={a.id} className="assignment-card">
-                  <div className="assignment-card-header">
-                    <div>
-                      <span className={`type-badge type-${a.type}`}>{workoutTypeLabel(a.type)}</span>
-                    </div>
-                    {a.status === 'completed' && <span className="status-badge status-completed">completed</span>}
-                  </div>
-                  {a.notes && <p className="workout-notes">{a.notes}</p>}
-                  <TargetVsActual assignment={a} workout={workoutByAssignment[a.id]} />
-                  {canLog && i === 0 && (
-                    selectedWorkout ? (
-                      <button type="button" className="calendar-log-action" onClick={openLogModal}>
-                        Edit workout
-                      </button>
-                    ) : isFutureDate ? (
-                      <p className="empty-state calendar-log-action">You can't log a workout for a future date yet.</p>
-                    ) : (
-                      <button type="button" className="calendar-log-action" onClick={openLogModal}>
-                        Log this workout
-                      </button>
-                    )
-                  )}
-                  {canManageAssignments && i === 0 && (
-                    <button type="button" className="calendar-log-action" onClick={() => openAssignmentModal(a)}>
-                      Edit assignment
+              {selectedAssignments.map((a, i) => {
+                const loggedWorkout = workoutByAssignment[a.id]
+                const logAction = canLog && i === 0 && (
+                  selectedWorkout ? (
+                    <button type="button" className="calendar-log-action" onClick={openLogModal}>
+                      Edit workout
                     </button>
-                  )}
-                </div>
-              ))}
+                  ) : isFutureDate ? (
+                    <p className="empty-state calendar-log-action">You can't log a workout for a future date yet.</p>
+                  ) : (
+                    <button type="button" className="calendar-log-action" onClick={openLogModal}>
+                      Log this workout
+                    </button>
+                  )
+                )
+                const assignAction = canManageAssignments && i === 0 && (
+                  <button type="button" className="calendar-log-action" onClick={() => openAssignmentModal(a)}>
+                    Edit assignment
+                  </button>
+                )
+
+                // Once the athlete has logged against this assignment, the
+                // logged workout's own card (same shape as Team Logs/History/
+                // AthleteDetail — see WorkoutCard) is the whole story; showing
+                // it alongside the assignment's own heavier card chrome would
+                // double up borders/shadows, so it replaces that wrapper
+                // rather than nesting inside it.
+                if (loggedWorkout) {
+                  return (
+                    <div key={a.id} className="calendar-assignment-entry">
+                      {a.status === 'completed' && <span className="status-badge status-completed">completed</span>}
+                      {a.notes && <p className="workout-notes">{a.notes}</p>}
+                      <WorkoutCard workout={loggedWorkout} hideEditLink />
+                      {logAction}
+                      {assignAction}
+                    </div>
+                  )
+                }
+
+                return (
+                  <div key={a.id} className="assignment-card">
+                    <div className="assignment-card-header">
+                      <div>
+                        <span className={`type-badge type-${a.type}`}>{workoutTypeLabel(a.type)}</span>
+                      </div>
+                      {a.status === 'completed' && <span className="status-badge status-completed">completed</span>}
+                    </div>
+                    {a.notes && <p className="workout-notes">{a.notes}</p>}
+                    <AssignedWorkoutSummary assignment={a} />
+                    {logAction}
+                    {assignAction}
+                  </div>
+                )
+              })}
             </div>
           ) : showAthleteData && selectedWorkout ? (
             <div className="assignments-list">
-              <div className="assignment-card">
-                <div className="assignment-card-header">
-                  <div>
-                    <span className={`type-badge type-${selectedWorkout.type}`}>
-                      {workoutTypeLabel(selectedWorkout.type)}
-                    </span>
-                  </div>
-                </div>
-                {selectedWorkout.notes && <p className="workout-notes">{selectedWorkout.notes}</p>}
+              <div className="calendar-assignment-entry">
+                <WorkoutCard workout={selectedWorkout} hideEditLink />
                 {canLog && (
                   <button type="button" className="calendar-log-action" onClick={openLogModal}>
                     Edit workout
