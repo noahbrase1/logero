@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
+  assignedDistanceSummary,
   assignedWorkoutHeadline,
   formatDate,
   formatDistanceValue,
@@ -19,7 +20,7 @@ import WorkoutTypeIcon from './WorkoutTypeIcon'
 
 // assigned_workouts' target-segments field, per workout type — running/swim/
 // bike/other (lifting keeps its existing TargetVsActual comparison instead,
-// see the isLifting branch below).
+// see LiftingBody below).
 const ASSIGNED_SEGMENTS_FIELD_BY_TYPE = {
   running: 'assigned_running_segments',
   swim: 'assigned_swim_segments',
@@ -32,7 +33,6 @@ export default function WorkoutCard({ workout, showAthleteName = false }) {
   const isRunning = workout.type === 'running'
   const isSwim = workout.type === 'swim'
   const isBike = workout.type === 'bike'
-  const isLifting = workout.type === 'lifting'
   const isOther = workout.type === 'other'
   const canEdit = profile?.role === 'athlete' && user?.id === workout.user_id
 
@@ -68,55 +68,25 @@ export default function WorkoutCard({ workout, showAthleteName = false }) {
       ) : isOther ? (
         <ActualAndPrescribed workout={workout} segments={workout.other_segments} SegmentComponent={OtherSegmentSummary} />
       ) : (
-        <>
-          <div className="workout-stats">
-            <Stat label="Exercises" value={workout.lifting_exercises?.length ?? 0} />
-            <Stat label="Effort" value={workout.perceived_effort ? `${workout.perceived_effort}/10` : '—'} />
-          </div>
-
-          {workout.lifting_exercises?.length > 0 && (
-            <details className="workout-details">
-              <summary>Exercises ({workout.lifting_exercises.length})</summary>
-              <table className="detail-table">
-                <thead>
-                  <tr>
-                    <th>Exercise</th>
-                    <th>Sets</th>
-                    <th>Reps</th>
-                    <th>Weight</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {workout.lifting_exercises.map((ex) => (
-                    <tr key={ex.id}>
-                      <td>{ex.exercise_name}</td>
-                      <td>{ex.sets ?? '—'}</td>
-                      <td>{ex.reps ?? '—'}</td>
-                      <td>{ex.weight ? `${ex.weight} lb` : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </details>
-          )}
-        </>
+        <LiftingBody workout={workout} />
       )}
 
       {workout.notes && <p className="workout-notes">{workout.notes}</p>}
-
-      {isLifting && workout.assigned_workouts && <TargetVsActual assignment={workout.assigned_workouts} workout={workout} />}
 
       <WorkoutComments workoutId={workout.id} />
     </article>
   )
 }
 
-// Shared body for running/swim/bike: a bold top-line headline of what the
-// athlete actually did (distance, time, average pace where meaningful),
-// their recorded splits below it in smaller type, and — only when this log
-// fulfills an assignment — the coach's prescribed workout directly below
-// that, in the same two-tier shape (headline, then splits), rather than a
-// per-segment target-vs-actual comparison.
+// Shared body for running/swim/bike/other: a bold top-line headline of what
+// the athlete actually did (distance, time, average pace where meaningful),
+// a compact "Prescribed: <distance>" line when this log fulfills an
+// assignment, and — only when there's genuine segment detail worth
+// revealing (more than one segment, or a segment with more than one rep) —
+// a "View splits" toggle exposing the full segment breakdown plus the
+// coach's prescribed workout, same shape as before this toggle existed.
+// A single-segment, single-rep workout has nothing left to reveal once its
+// total is already the headline, so no toggle is shown for it at all.
 function ActualAndPrescribed({ workout, segments, SegmentComponent }) {
   const loggedSegments = segments || []
   const headline = loggedWorkoutHeadline(workout)
@@ -125,37 +95,124 @@ function ActualAndPrescribed({ workout, segments, SegmentComponent }) {
   const targetField = ASSIGNED_SEGMENTS_FIELD_BY_TYPE[workout.type]
   const targetSegments = assignment ? assignment[targetField] || [] : []
   const prescribedHeadline = assignment ? assignedWorkoutHeadline(assignment) : []
+  const prescribedDistance = assignment ? assignedDistanceSummary(assignment) : null
+
+  const hasSplitDetail = (segs) => segs.length > 1 || segs.some((seg) => (seg.reps || 1) > 1)
+  const showSplitsToggle = hasSplitDetail(loggedSegments) || hasSplitDetail(targetSegments)
 
   return (
     <>
       <div className="workout-headline">
         {headline.length > 0 ? headline.join(' · ') : 'No distance or time recorded'}
       </div>
-      {workout.perceived_effort && <div className="workout-headline-meta">Effort {workout.perceived_effort}/10</div>}
-
-      {loggedSegments.length > 0 && (
-        <div className="segment-list">
-          {loggedSegments.map((seg) => (
-            <SegmentComponent key={seg.id} segment={seg} />
-          ))}
+      {(workout.perceived_effort || prescribedDistance) && (
+        <div className="workout-collapsed-meta">
+          {workout.perceived_effort && <span className="workout-headline-meta">Effort {workout.perceived_effort}/10</span>}
+          {prescribedDistance && (
+            <span className="workout-headline-meta">
+              Prescribed: {formatDistanceValue(prescribedDistance.value, prescribedDistance.unit)}
+              {unitAbbrev(prescribedDistance.unit)}
+            </span>
+          )}
         </div>
       )}
 
-      {targetSegments.length > 0 && (
-        <div className="target-actual">
-          <div className="target-actual-heading">Prescribed</div>
-          <div className="workout-headline workout-headline-prescribed">
-            {prescribedHeadline.length > 0 ? prescribedHeadline.join(' · ') : '—'}
-          </div>
-          <div className="segment-list">
-            {targetSegments.map((seg) => (
-              <PrescribedSegmentSummary key={seg.id} seg={seg} type={workout.type} />
-            ))}
-          </div>
-        </div>
+      {showSplitsToggle && (
+        <details className="workout-details">
+          <summary>View splits</summary>
+
+          {loggedSegments.length > 0 && (
+            <div className="segment-list">
+              {loggedSegments.map((seg) => (
+                <SegmentComponent key={seg.id} segment={seg} />
+              ))}
+            </div>
+          )}
+
+          {targetSegments.length > 0 && (
+            <div className="target-actual">
+              <div className="target-actual-heading">Prescribed</div>
+              <div className="workout-headline workout-headline-prescribed">
+                {prescribedHeadline.length > 0 ? prescribedHeadline.join(' · ') : '—'}
+              </div>
+              <div className="segment-list">
+                {targetSegments.map((seg) => (
+                  <PrescribedSegmentSummary key={seg.id} seg={seg} type={workout.type} />
+                ))}
+              </div>
+            </div>
+          )}
+        </details>
       )}
     </>
   )
+}
+
+// Lifting's equivalent of ActualAndPrescribed: a single exercise has nothing
+// to hide behind a toggle (its sets/reps/weight — and target, if assigned —
+// fit right in the collapsed summary), so the "View sets" toggle only
+// appears once there's more than one exercise logged or assigned.
+function LiftingBody({ workout }) {
+  const exercises = workout.lifting_exercises || []
+  const assignment = workout.assigned_workouts
+  const targets = assignment?.assigned_lifting_targets || []
+  const singleExercise = exercises.length === 1 ? exercises[0] : null
+  const singleTarget = targets.length === 1 ? targets[0] : null
+  const showSetsToggle = exercises.length > 1 || targets.length > 1
+
+  return (
+    <>
+      <div className="workout-stats">
+        {singleExercise ? (
+          <Stat label={singleExercise.exercise_name} value={liftingExerciseSummary(singleExercise)} />
+        ) : (
+          <Stat label="Exercises" value={exercises.length} />
+        )}
+        <Stat label="Effort" value={workout.perceived_effort ? `${workout.perceived_effort}/10` : '—'} />
+      </div>
+
+      {!showSetsToggle && singleTarget && (
+        <div className="workout-headline-meta">Prescribed: {liftingTargetSummary(singleTarget)}</div>
+      )}
+
+      {showSetsToggle && (
+        <details className="workout-details">
+          <summary>View sets</summary>
+          {exercises.length > 0 && (
+            <table className="detail-table">
+              <thead>
+                <tr>
+                  <th>Exercise</th>
+                  <th>Sets</th>
+                  <th>Reps</th>
+                  <th>Weight</th>
+                </tr>
+              </thead>
+              <tbody>
+                {exercises.map((ex) => (
+                  <tr key={ex.id}>
+                    <td>{ex.exercise_name}</td>
+                    <td>{ex.sets ?? '—'}</td>
+                    <td>{ex.reps ?? '—'}</td>
+                    <td>{ex.weight ? `${ex.weight} lb` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {targets.length > 0 && <TargetVsActual assignment={assignment} workout={workout} />}
+        </details>
+      )}
+    </>
+  )
+}
+
+function liftingExerciseSummary(ex) {
+  return `${ex.sets ?? '—'}×${ex.reps ?? '—'} @ ${ex.weight ? `${ex.weight} lb` : '—'}`
+}
+
+function liftingTargetSummary(t) {
+  return `${t.target_sets ?? '—'}×${t.target_reps ?? '—'} @ ${t.target_weight ? `${t.target_weight} lb` : '—'}`
 }
 
 function Stat({ label, value }) {

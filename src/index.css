@@ -904,6 +904,16 @@ label {
   color: var(--text-muted);
 }
 
+.workout-collapsed-meta {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.workout-collapsed-meta .workout-headline-meta {
+  margin-top: 0.15rem;
+}
+
 .stat {
   display: flex;
   flex-direction: column;
