@@ -424,7 +424,7 @@ export async function updateLiftingWorkout(id, { date, name, perceivedEffort, no
 // ---------------------------------------------------------------------------
 
 const WORKOUT_SELECT =
-  '*, running_segments(*, running_segment_reps(*)), swim_segments(*, swim_segment_reps(*)), bike_segments(*, bike_segment_reps(*)), other_segments(*, other_segment_reps(*)), lifting_exercises(*), assigned_workouts(*, assigned_running_segments(*), assigned_swim_segments(*), assigned_bike_segments(*), assigned_other_segments(*), assigned_lifting_targets(*))'
+  '*, running_segments(*, running_segment_reps(*)), swim_segments(*, swim_segment_reps(*)), bike_segments(*, bike_segment_reps(*)), other_segments(*, other_segment_reps(*)), lifting_exercises(*), assigned_workouts(*, assigned_running_segments(*, assigned_running_segment_reps(*)), assigned_swim_segments(*, assigned_swim_segment_reps(*)), assigned_bike_segments(*, assigned_bike_segment_reps(*)), assigned_other_segments(*, assigned_other_segment_reps(*)), assigned_lifting_targets(*))'
 
 export async function fetchWorkouts({ userId, type, startDate, endDate } = {}) {
   // Sort by submission time, not just the logged date — otherwise two
@@ -461,9 +461,21 @@ function sortWorkoutNested(w) {
   w.other_segments?.sort((a, b) => a.order_index - b.order_index)
   w.other_segments?.forEach((seg) => seg.other_segment_reps?.sort((a, b) => a.rep_number - b.rep_number))
   w.assigned_workouts?.assigned_running_segments?.sort((a, b) => a.order_index - b.order_index)
+  w.assigned_workouts?.assigned_running_segments?.forEach((seg) =>
+    seg.assigned_running_segment_reps?.sort((a, b) => a.rep_number - b.rep_number)
+  )
   w.assigned_workouts?.assigned_swim_segments?.sort((a, b) => a.order_index - b.order_index)
+  w.assigned_workouts?.assigned_swim_segments?.forEach((seg) =>
+    seg.assigned_swim_segment_reps?.sort((a, b) => a.rep_number - b.rep_number)
+  )
   w.assigned_workouts?.assigned_bike_segments?.sort((a, b) => a.order_index - b.order_index)
+  w.assigned_workouts?.assigned_bike_segments?.forEach((seg) =>
+    seg.assigned_bike_segment_reps?.sort((a, b) => a.rep_number - b.rep_number)
+  )
   w.assigned_workouts?.assigned_other_segments?.sort((a, b) => a.order_index - b.order_index)
+  w.assigned_workouts?.assigned_other_segments?.forEach((seg) =>
+    seg.assigned_other_segment_reps?.sort((a, b) => a.rep_number - b.rep_number)
+  )
 }
 
 // !inner forces the join so .neq('profiles.role', ...) can actually filter

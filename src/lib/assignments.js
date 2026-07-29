@@ -1,17 +1,69 @@
 import { supabase } from './supabaseClient'
 
 const ASSIGNMENT_SELECT =
-  '*, assigned_running_segments(*), assigned_swim_segments(*), assigned_bike_segments(*), assigned_other_segments(*), assigned_lifting_targets(*)'
+  '*, assigned_running_segments(*, assigned_running_segment_reps(*)), assigned_swim_segments(*, assigned_swim_segment_reps(*)), assigned_bike_segments(*, assigned_bike_segment_reps(*)), assigned_other_segments(*, assigned_other_segment_reps(*)), assigned_lifting_targets(*)'
 
 function sortAssignment(a) {
   a?.assigned_running_segments?.sort((x, y) => x.order_index - y.order_index)
+  a?.assigned_running_segments?.forEach((seg) => seg.assigned_running_segment_reps?.sort((x, y) => x.rep_number - y.rep_number))
   a?.assigned_swim_segments?.sort((x, y) => x.order_index - y.order_index)
+  a?.assigned_swim_segments?.forEach((seg) => seg.assigned_swim_segment_reps?.sort((x, y) => x.rep_number - y.rep_number))
   a?.assigned_bike_segments?.sort((x, y) => x.order_index - y.order_index)
+  a?.assigned_bike_segments?.forEach((seg) => seg.assigned_bike_segment_reps?.sort((x, y) => x.rep_number - y.rep_number))
   a?.assigned_other_segments?.sort((x, y) => x.order_index - y.order_index)
+  a?.assigned_other_segments?.forEach((seg) => seg.assigned_other_segment_reps?.sort((x, y) => x.rep_number - y.rep_number))
   return a
 }
 
-// `runningSegments`/`swimSegments`/`bikeSegments`/`otherSegments`: [{ label, distanceValue, distanceUnit, reps, targetTime: {hours,minutes,seconds} }]
+// Shared by every segment-based branch of createAssignment below — inserts
+// each segment row, then one row per rep into its `repsTable`, mirroring
+// insertRunningSegments/insertSwimSegments/insertBikeSegments/
+// insertOtherSegments in src/lib/workouts.js (the actuals-side equivalent).
+// The segment row's own target_time_* columns are also filled in from the
+// first rep, purely as a harmless fallback for any code path that hasn't
+// been updated to read the per-rep rows — nothing in this app relies on
+// them once the reps exist.
+async function insertAssignedSegmentsWithReps(segmentsTable, repsTable, assignedWorkoutId, segments) {
+  const cleanSegments = (segments || []).filter((s) => s.distanceValue)
+
+  for (let i = 0; i < cleanSegments.length; i++) {
+    const seg = cleanSegments[i]
+    const firstRep = seg.repTimes?.[0]
+    const { data: segmentRow, error: segmentError } = await supabase
+      .from(segmentsTable)
+      .insert({
+        assigned_workout_id: assignedWorkoutId,
+        order_index: i,
+        label: seg.label || null,
+        distance_value: Number(seg.distanceValue),
+        distance_unit: seg.distanceUnit,
+        reps: Number(seg.reps) || 1,
+        target_time_hours: firstRep?.hours || 0,
+        target_time_minutes: firstRep?.minutes || 0,
+        target_time_seconds: firstRep?.seconds || 0,
+      })
+      .select()
+      .single()
+    if (segmentError) throw segmentError
+
+    const repRows = (seg.repTimes || []).map((t, idx) => ({
+      segment_id: segmentRow.id,
+      rep_number: idx + 1,
+      target_time_hours: t.hours || 0,
+      target_time_minutes: t.minutes || 0,
+      target_time_seconds: t.seconds || 0,
+    }))
+
+    if (repRows.length > 0) {
+      const { error: repsError } = await supabase.from(repsTable).insert(repRows)
+      if (repsError) throw repsError
+    }
+  }
+}
+
+// `runningSegments`/`swimSegments`/`bikeSegments`/`otherSegments`: [{ label, distanceValue, distanceUnit, reps, repTimes: [{hours,minutes,seconds}, ...] }]
+// — the exact same shape createWorkout's segments use, since a segment
+// means the same thing whether it's an actual or a target.
 export async function createAssignment({
   coachId,
   athleteId,
@@ -32,79 +84,19 @@ export async function createAssignment({
   if (error) throw error
 
   if (type === 'running' && runningSegments?.length) {
-    const cleanSegments = runningSegments.filter((s) => s.distanceValue)
-    for (let i = 0; i < cleanSegments.length; i++) {
-      const seg = cleanSegments[i]
-      const { error: segmentError } = await supabase.from('assigned_running_segments').insert({
-        assigned_workout_id: assignment.id,
-        order_index: i,
-        label: seg.label || null,
-        distance_value: Number(seg.distanceValue),
-        distance_unit: seg.distanceUnit,
-        reps: Number(seg.reps) || 1,
-        target_time_hours: seg.targetTime?.hours || 0,
-        target_time_minutes: seg.targetTime?.minutes || 0,
-        target_time_seconds: seg.targetTime?.seconds || 0,
-      })
-      if (segmentError) throw segmentError
-    }
+    await insertAssignedSegmentsWithReps('assigned_running_segments', 'assigned_running_segment_reps', assignment.id, runningSegments)
   }
 
   if (type === 'swim' && swimSegments?.length) {
-    const cleanSegments = swimSegments.filter((s) => s.distanceValue)
-    for (let i = 0; i < cleanSegments.length; i++) {
-      const seg = cleanSegments[i]
-      const { error: segmentError } = await supabase.from('assigned_swim_segments').insert({
-        assigned_workout_id: assignment.id,
-        order_index: i,
-        label: seg.label || null,
-        distance_value: Number(seg.distanceValue),
-        distance_unit: seg.distanceUnit,
-        reps: Number(seg.reps) || 1,
-        target_time_hours: seg.targetTime?.hours || 0,
-        target_time_minutes: seg.targetTime?.minutes || 0,
-        target_time_seconds: seg.targetTime?.seconds || 0,
-      })
-      if (segmentError) throw segmentError
-    }
+    await insertAssignedSegmentsWithReps('assigned_swim_segments', 'assigned_swim_segment_reps', assignment.id, swimSegments)
   }
 
   if (type === 'bike' && bikeSegments?.length) {
-    const cleanSegments = bikeSegments.filter((s) => s.distanceValue)
-    for (let i = 0; i < cleanSegments.length; i++) {
-      const seg = cleanSegments[i]
-      const { error: segmentError } = await supabase.from('assigned_bike_segments').insert({
-        assigned_workout_id: assignment.id,
-        order_index: i,
-        label: seg.label || null,
-        distance_value: Number(seg.distanceValue),
-        distance_unit: seg.distanceUnit,
-        reps: Number(seg.reps) || 1,
-        target_time_hours: seg.targetTime?.hours || 0,
-        target_time_minutes: seg.targetTime?.minutes || 0,
-        target_time_seconds: seg.targetTime?.seconds || 0,
-      })
-      if (segmentError) throw segmentError
-    }
+    await insertAssignedSegmentsWithReps('assigned_bike_segments', 'assigned_bike_segment_reps', assignment.id, bikeSegments)
   }
 
   if (type === 'other' && otherSegments?.length) {
-    const cleanSegments = otherSegments.filter((s) => s.distanceValue)
-    for (let i = 0; i < cleanSegments.length; i++) {
-      const seg = cleanSegments[i]
-      const { error: segmentError } = await supabase.from('assigned_other_segments').insert({
-        assigned_workout_id: assignment.id,
-        order_index: i,
-        label: seg.label || null,
-        distance_value: Number(seg.distanceValue),
-        distance_unit: seg.distanceUnit,
-        reps: Number(seg.reps) || 1,
-        target_time_hours: seg.targetTime?.hours || 0,
-        target_time_minutes: seg.targetTime?.minutes || 0,
-        target_time_seconds: seg.targetTime?.seconds || 0,
-      })
-      if (segmentError) throw segmentError
-    }
+    await insertAssignedSegmentsWithReps('assigned_other_segments', 'assigned_other_segment_reps', assignment.id, otherSegments)
   }
 
   if (type === 'lifting' && liftingTargets?.length) {
@@ -192,23 +184,39 @@ export async function deleteAssignment(id) {
 // AssignmentForm/createAssignment use. Used both to pre-fill the edit form
 // and to build a copy/paste clipboard entry's payload.
 export function assignmentToFormPayload(assignment) {
-  const seg = (list) =>
-    (list || []).map((s) => ({
-      key: crypto.randomUUID(),
-      label: s.label || '',
-      distanceValue: s.distance_value,
-      distanceUnit: s.distance_unit,
-      reps: s.reps,
-      targetTime: { hours: s.target_time_hours, minutes: s.target_time_minutes, seconds: s.target_time_seconds },
-    }))
+  // Reads each rep's own target time back from its `repsField` child rows —
+  // same `repTimes` shape SegmentEditor uses for actuals. Falls back to the
+  // segment-level target_time_* columns (as a single rep) for a segment
+  // saved before this per-rep rework existed, so an old assignment still
+  // round-trips into something editable rather than an empty/broken time.
+  const segWithReps = (list, repsField) =>
+    (list || []).map((s) => {
+      const repRows = s[repsField] || []
+      const repTimes =
+        repRows.length > 0
+          ? repRows.map((r) => ({
+              hours: r.target_time_hours,
+              minutes: r.target_time_minutes,
+              seconds: r.target_time_seconds,
+            }))
+          : [{ hours: s.target_time_hours, minutes: s.target_time_minutes, seconds: s.target_time_seconds }]
+      return {
+        key: crypto.randomUUID(),
+        label: s.label || '',
+        distanceValue: s.distance_value,
+        distanceUnit: s.distance_unit,
+        reps: s.reps,
+        repTimes,
+      }
+    })
 
   return {
     type: assignment.type,
     notes: assignment.notes || '',
-    runningSegments: seg(assignment.assigned_running_segments),
-    swimSegments: seg(assignment.assigned_swim_segments),
-    bikeSegments: seg(assignment.assigned_bike_segments),
-    otherSegments: seg(assignment.assigned_other_segments),
+    runningSegments: segWithReps(assignment.assigned_running_segments, 'assigned_running_segment_reps'),
+    swimSegments: segWithReps(assignment.assigned_swim_segments, 'assigned_swim_segment_reps'),
+    bikeSegments: segWithReps(assignment.assigned_bike_segments, 'assigned_bike_segment_reps'),
+    otherSegments: segWithReps(assignment.assigned_other_segments, 'assigned_other_segment_reps'),
     liftingTargets: (assignment.assigned_lifting_targets || []).map((t) => ({
       exerciseName: t.exercise_name,
       targetSets: t.target_sets ?? '',

@@ -1,5 +1,5 @@
-import { assignedWorkoutHeadline } from '../utils/format'
-import { ASSIGNED_SEGMENTS_FIELD_BY_TYPE, PrescribedSegmentSummary, liftingTargetSummary } from './WorkoutCard'
+import { ASSIGNED_SEGMENTS_FIELD_BY_TYPE, assignedWorkoutHeadline } from '../utils/format'
+import { PrescribedSegmentSummary, liftingTargetSummary } from './WorkoutCard'
 
 // The not-yet-logged twin of WorkoutCard's own "Prescribed" block — used by
 // the athlete calendar's day panel when a day has an assignment but nothing

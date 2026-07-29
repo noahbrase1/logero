@@ -239,7 +239,10 @@ function sumSegmentDistanceMiles(segments) {
   return Math.round(miles * 100) / 100
 }
 
-const ASSIGNED_SEGMENTS_FIELD_BY_TYPE = {
+// The one canonical copy of this map — WorkoutCard.jsx imports it from here
+// rather than keeping its own (it used to; that was drift, not a deliberate
+// second definition).
+export const ASSIGNED_SEGMENTS_FIELD_BY_TYPE = {
   running: 'assigned_running_segments',
   swim: 'assigned_swim_segments',
   bike: 'assigned_bike_segments',
@@ -312,11 +315,21 @@ export function loggedDistanceSummary(workout) {
   return miles > 0 ? { value: miles, unit: 'miles' } : null
 }
 
-const LOGGED_REPS_FIELD_BY_TYPE = {
+// Exported so WorkoutCard's PrescribedSegmentSummary can pair each actual
+// rep with its corresponding target rep without duplicating this map.
+export const LOGGED_REPS_FIELD_BY_TYPE = {
   running: 'running_segment_reps',
   swim: 'swim_segment_reps',
   bike: 'bike_segment_reps',
   other: 'other_segment_reps',
+}
+
+// Exported for the same reason as LOGGED_REPS_FIELD_BY_TYPE above.
+export const ASSIGNED_REPS_FIELD_BY_TYPE = {
+  running: 'assigned_running_segment_reps',
+  swim: 'assigned_swim_segment_reps',
+  bike: 'assigned_bike_segment_reps',
+  other: 'assigned_other_segment_reps',
 }
 
 // Total logged time across every rep of every segment in a running/swim/
@@ -343,13 +356,25 @@ export function sumLoggedTimeSeconds(workout) {
 }
 
 // Total *target* time across a running/swim/bike assignment's segments —
-// each target segment stores one target time meant per-rep, so it's
-// multiplied by that segment's rep count (unlike logged reps, which already
-// have one row per rep). 0 for lifting/note.
+// each rep now has its own target time (see assigned_running_segment_reps
+// etc.), so this sums those directly, the same way sumLoggedTimeSeconds
+// sums actual reps. Falls back to the old "one shared segment-level target
+// x rep count" math only for "other" (not part of the per-rep-target
+// rework) or a legacy segment saved before per-rep rows existed. 0 for
+// lifting/note.
 export function sumAssignedTimeSeconds(assignment) {
   const field = ASSIGNED_SEGMENTS_FIELD_BY_TYPE[assignment?.type]
+  const repsField = ASSIGNED_REPS_FIELD_BY_TYPE[assignment?.type]
   if (!field) return 0
   return (assignment[field] || []).reduce((total, seg) => {
+    const repRows = repsField ? seg[repsField] || [] : []
+    if (repRows.length > 0) {
+      const repSeconds = repRows.reduce(
+        (t, r) => t + hmsToSeconds({ hours: r.target_time_hours, minutes: r.target_time_minutes, seconds: r.target_time_seconds }),
+        0
+      )
+      return total + repSeconds
+    }
     const perRep = hmsToSeconds({
       hours: seg.target_time_hours,
       minutes: seg.target_time_minutes,
@@ -422,19 +447,42 @@ export function summarizeAssignment(assignment) {
     other: assignment.assigned_other_segments,
   }
   const segments = segmentsByType[assignment.type]
+  const repsField = ASSIGNED_REPS_FIELD_BY_TYPE[assignment.type]
 
   if (segments?.length > 0) {
     return segments
       .map((seg) => {
-        const targetSeconds = hmsToSeconds({
-          hours: seg.target_time_hours,
-          minutes: seg.target_time_minutes,
-          seconds: seg.target_time_seconds,
-        })
         const label = seg.label ? `${seg.label}: ` : ''
         const repsPrefix = seg.reps > 1 ? `${seg.reps}×` : ''
-        const time = targetSeconds > 0 ? ` @ ${secondsToClock(targetSeconds)}` : ''
-        return `${label}${repsPrefix}${formatDistanceValue(seg.distance_value, seg.distance_unit)}${unitAbbrev(seg.distance_unit)}${time}`
+        const distance = `${formatDistanceValue(seg.distance_value, seg.distance_unit)}${unitAbbrev(seg.distance_unit)}`
+
+        const repRows = repsField ? seg[repsField] || [] : []
+        let time = ''
+        if (repRows.length > 0) {
+          const repSecondsList = repRows.map((r) =>
+            hmsToSeconds({ hours: r.target_time_hours, minutes: r.target_time_minutes, seconds: r.target_time_seconds })
+          )
+          if (repSecondsList.some((s) => s > 0)) {
+            // The common case (every rep targeted the same time) stays a
+            // single compact "@ time"; only a genuinely varied set of
+            // per-rep targets (e.g. 2:32, 2:30, 2:28, 2:26) spells all of
+            // them out, since that's the whole point of setting them
+            // individually.
+            const allSame = repSecondsList.every((s) => s === repSecondsList[0])
+            time = allSame
+              ? ` @ ${secondsToClock(repSecondsList[0])}`
+              : ` @ ${repSecondsList.map((s) => (s > 0 ? secondsToClock(s) : '—')).join(', ')}`
+          }
+        } else {
+          const targetSeconds = hmsToSeconds({
+            hours: seg.target_time_hours,
+            minutes: seg.target_time_minutes,
+            seconds: seg.target_time_seconds,
+          })
+          time = targetSeconds > 0 ? ` @ ${secondsToClock(targetSeconds)}` : ''
+        }
+
+        return `${label}${repsPrefix}${distance}${time}`
       })
       .join(', ')
   }
