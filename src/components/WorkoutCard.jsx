@@ -94,11 +94,11 @@ function ActualAndPrescribed({ workout, segments }) {
   return (
     <>
       <div className="workout-headline">
-        Total: {headline.length > 0 ? headline.join(' · ') : 'No distance or time recorded'}
+        Total: {headline.length > 0 ? headline.join(' @ ') : 'No distance or time recorded'}
       </div>
       {assignment && (
         <div className="workout-headline-prescribed">
-          Prescribed: {prescribedHeadline.length > 0 ? prescribedHeadline.join(' · ') : '—'}
+          Prescribed: {prescribedHeadline.length > 0 ? prescribedHeadline.join(' @ ') : '—'}
         </div>
       )}
       {workout.perceived_effort && (

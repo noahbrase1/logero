@@ -54,7 +54,7 @@ export default function AssignedWorkoutSummary({ assignment }) {
 
   return (
     <>
-      <div className="workout-headline">Prescribed: {headline.length > 0 ? headline.join(' · ') : '—'}</div>
+      <div className="workout-headline">Prescribed: {headline.length > 0 ? headline.join(' @ ') : '—'}</div>
       <details className="workout-details">
         <summary>View splits</summary>
         <div className="segment-list">
