@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { fetchAssignmentsForCoach } from '../lib/assignments'
 import { fetchTeamWorkoutsByDate } from '../lib/workouts'
 import { recordSplitEntry } from '../lib/splitRecorder'
@@ -39,15 +39,15 @@ function segmentDisplayName(seg) {
   )
 }
 
-// Defaults the setup (type/name/segments) from the day's most common
-// assignment — "most common" meaning the largest group of athletes
+// Defaults the *fallback* setup (type/name/segments) from the day's most
+// common assignment — "most common" meaning the largest group of athletes
 // assigned the exact same workout, via the same grouping the assignment
-// grid's "Export day" flow already uses. Every one of that assignment's
-// segments is carried over (a 2mi warm-up + 4x400m + 4x200m assignment
-// defaults to all three, not just one), preserving their order. Returns
-// null when nothing on the day is a segment-based type (running/swim/bike/
-// other) with at least one segment — e.g. an all-lifting day, or no
-// assignments at all — leaving the caller to fall back to a blank default.
+// grid's "Export day" flow already uses. This fallback is only ever used
+// for an athlete who has no assignment of a matching type that day (see
+// resolveAthleteSegments below) — anyone with a real assignment always uses
+// their own segments instead, never this shared default. Returns null when
+// nothing on the day is a segment-based type (running/swim/bike/other) with
+// at least one segment — e.g. an all-lifting day, or no assignments at all.
 function computeSetupDefaults(assignments) {
   const segmentBased = (assignments || []).filter((a) => SPORT_TYPES.includes(a.type))
   if (segmentBased.length === 0) return null
@@ -68,47 +68,60 @@ function computeSetupDefaults(assignments) {
   return { type: rep.type, name, segments }
 }
 
-// Matches each of the grid's setup segments to the best-fitting segment in
-// `candidateSegments` (one athlete's own assignment or previously-saved
-// workout segments) — by (distance_value, distance_unit) first, since
-// that's the only thing guaranteed comparable across an assignment that may
-// not have the same segment structure as the grid's (different athletes
-// can be assigned completely different workouts the same day). A grid
-// segment's own label is used only as a tiebreaker among multiple
-// same-distance candidates, never as the primary key, since it's free text
-// that can legitimately differ between the coach's setup and an
-// individually-assigned segment describing the same distance. Crucially,
-// this is NEVER positional (segment N of the grid vs. segment N of the
-// athlete) — an athlete missing one of the grid's segments (e.g. no 400m
-// repeats) must never have a *different* segment's data (e.g. their 200m)
-// silently line up against the grid's 400m columns just because it happens
-// to sit at the same array index. Each candidate is matched to at most one
-// grid segment (removed from `remaining` once claimed), and a grid segment
-// with nothing matching returns null for that position.
-function matchSegmentsToAthlete(gridSegments, candidateSegments) {
-  const remaining = (candidateSegments || []).map((c, idx) => ({ c, idx }))
-  return gridSegments.map((gridSeg) => {
-    const gridDistance = Number(gridSeg.distanceValue)
-    const gridLabel = (gridSeg.label || '').trim().toLowerCase()
-    const sameDistance = remaining.filter(
-      ({ c }) => Number(c.distance_value) === gridDistance && c.distance_unit === gridSeg.distanceUnit
-    )
-    if (sameDistance.length === 0) return null
-    const preferred = (gridLabel && sameDistance.find(({ c }) => (c.label || '').trim().toLowerCase() === gridLabel)) || sameDistance[0]
-    remaining.splice(remaining.indexOf(preferred), 1)
-    return preferred.c
-  })
+// The segments (and therefore the columns) to show for ONE athlete: their
+// own assignment's segments when it matches the recorder's current type,
+// otherwise the shared fallback setup segments. This is the key fix for
+// showing every athlete's real structure — different athletes can be
+// assigned completely different workouts the same day (that's the whole
+// point of showing everyone regardless of their assignment), so there is
+// no single shared column set that's correct for all of them; each
+// athlete's own header/columns must come from their own data. `targetSegment`
+// carries the raw assigned segment (so its own target times can be read
+// directly, with no matching/guessing needed) only when this came from a
+// real assignment — it's null for the fallback case, where there's no
+// target to show at all.
+function resolveAthleteSegments(athlete, type, assignmentByAthleteId, fallbackSegments) {
+  const assignment = assignmentByAthleteId.get(athlete.id)
+  if (assignment && assignment.type === type) {
+    const rawSegments = assignment[ASSIGNED_SEGMENTS_FIELD_BY_TYPE[type]] || []
+    if (rawSegments.length > 0) {
+      return rawSegments.map((seg) => ({
+        label: seg.label || '',
+        distanceValue: String(seg.distance_value),
+        distanceUnit: seg.distance_unit,
+        reps: seg.reps || 1,
+        targetSegment: seg,
+      }))
+    }
+  }
+  return fallbackSegments.map((seg) => ({ ...seg, targetSegment: null }))
 }
 
-// This athlete's own assigned target time for one rep of a *matched*
-// segment (see matchSegmentsToAthlete) — null when that rep has no
-// recorded target, distinct from the caller's own "no matching segment at
-// all" case, which is handled separately so the two can be shown
-// differently (a generic hint vs. "N/A").
-function prescribedSecondsFromMatchedSegment(matchedSeg, type, repIndex) {
-  const repRows = matchedSeg[ASSIGNED_REPS_FIELD_BY_TYPE[type]] || []
+// Flattens one athlete's own segments into one column per rep, in order —
+// this is that athlete's actual column list; different athletes can (and
+// often will) have a different number of these, and a different meaning at
+// the same position, since each is built from that athlete's own segments.
+function flattenSegments(athleteSegments) {
+  const defs = []
+  athleteSegments.forEach((seg, segIndex) => {
+    const reps = Math.max(1, Number(seg.reps) || 1)
+    for (let repIndex = 0; repIndex < reps; repIndex++) {
+      defs.push({ segIndex, repIndex, seg, isSegmentStart: repIndex === 0 && segIndex > 0 })
+    }
+  })
+  return defs
+}
+
+// This column's own assigned target time. Trivially correct now (no
+// matching/guessing involved) — `def.seg.targetSegment`, when present, IS
+// the exact assigned segment this column was built from in the first
+// place, via resolveAthleteSegments.
+function prescribedSecondsForDef(def, type) {
+  const targetSeg = def.seg.targetSegment
+  if (!targetSeg) return null
+  const repRows = targetSeg[ASSIGNED_REPS_FIELD_BY_TYPE[type]] || []
   if (repRows.length > 0) {
-    const row = repRows[repIndex]
+    const row = repRows[def.repIndex]
     if (!row) return null
     const s = hmsToSeconds({ hours: row.target_time_hours, minutes: row.target_time_minutes, seconds: row.target_time_seconds })
     return s > 0 ? s : null
@@ -116,11 +129,31 @@ function prescribedSecondsFromMatchedSegment(matchedSeg, type, repIndex) {
   // A target segment saved before per-rep rows existed has none yet — its
   // single legacy target applies to every rep.
   const single = hmsToSeconds({
-    hours: matchedSeg.target_time_hours,
-    minutes: matchedSeg.target_time_minutes,
-    seconds: matchedSeg.target_time_seconds,
+    hours: targetSeg.target_time_hours,
+    minutes: targetSeg.target_time_minutes,
+    seconds: targetSeg.target_time_seconds,
   })
   return single > 0 ? single : null
+}
+
+// Matches a set of segments (an athlete's own current columns) to the
+// segments of a previously-saved workout — by (distance_value,
+// distance_unit) first, with label only as a tiebreaker among multiple
+// same-distance candidates — so reopening the recorder still lines saved
+// times up correctly even if the athlete's assignment changed distances
+// between saves. Never positional: each candidate is claimed by at most
+// one column, and a column with nothing matching returns null.
+function matchSegmentsToSaved(currentSegments, savedSegments) {
+  const remaining = (savedSegments || []).map((c, idx) => ({ c, idx }))
+  return currentSegments.map((seg) => {
+    const distance = Number(seg.distanceValue)
+    const label = (seg.label || '').trim().toLowerCase()
+    const sameDistance = remaining.filter(({ c }) => Number(c.distance_value) === distance && c.distance_unit === seg.distanceUnit)
+    if (sameDistance.length === 0) return null
+    const preferred = (label && sameDistance.find(({ c }) => (c.label || '').trim().toLowerCase() === label)) || sameDistance[0]
+    remaining.splice(remaining.indexOf(preferred), 1)
+    return preferred.c
+  })
 }
 
 // Only ever matches a workout this same tool previously created (see
@@ -136,16 +169,15 @@ function findExistingEntry(workouts, athleteId, type, assignmentId) {
 }
 
 // Reads a previously-saved split-recorder workout's segments back into a
-// flat array matching the current setup's column order (segment-by-
-// segment, then rep-by-rep within each) — matched to the setup's segments
-// the same content-based way as prescribed targets (matchSegmentsToAthlete),
-// never positionally, for the same reason. A saved segment only ever holds
+// flat array matching each athlete's own current column order — computed
+// per athlete (using their own resolveAthleteSegments/flattenSegments),
+// never against a shared column set. A saved segment only ever holds
 // however many reps were actually filled in last time (gaps are dropped at
 // save time, not preserved), so this places them in the first N columns of
-// the matching setup segment — there's no way to recover which original
-// column a compacted rep came from, and for a live-recording tool that
-// distinction isn't meaningful anyway.
-function buildInitialEntries(athletes, workouts, type, segments, assignmentByAthleteId) {
+// the matching segment — there's no way to recover which original column a
+// compacted rep came from, and for a live-recording tool that distinction
+// isn't meaningful anyway.
+function buildInitialEntries(athletes, workouts, type, assignmentByAthleteId, fallbackSegments) {
   const initial = {}
   for (const athlete of athletes) {
     const athleteAssignment = assignmentByAthleteId.get(athlete.id)
@@ -153,14 +185,15 @@ function buildInitialEntries(athletes, workouts, type, segments, assignmentByAth
     const existing = findExistingEntry(workouts, athlete.id, type, assignmentId)
     if (!existing) continue
 
+    const athleteSegments = resolveAthleteSegments(athlete, type, assignmentByAthleteId, fallbackSegments)
     const savedSegments = existing[LOGGED_SEGMENTS_FIELD_BY_TYPE[existing.type]] || []
-    const matchedSavedSegments = matchSegmentsToAthlete(segments, savedSegments)
+    const matchedSavedSegments = matchSegmentsToSaved(athleteSegments, savedSegments)
     const repsField = LOGGED_REPS_FIELD_BY_TYPE[existing.type]
     const flatValues = []
-    segments.forEach((setupSeg, segIndex) => {
+    athleteSegments.forEach((seg, segIndex) => {
       const savedSeg = matchedSavedSegments[segIndex]
       const savedReps = savedSeg ? savedSeg[repsField] || [] : []
-      const columnCount = Math.max(1, Number(setupSeg.reps) || 1)
+      const columnCount = Math.max(1, Number(seg.reps) || 1)
       for (let i = 0; i < columnCount; i++) {
         const r = savedReps[i]
         flatValues.push(r ? { hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds } : undefined)
@@ -184,10 +217,14 @@ export default function SplitRecorder({ athletes }) {
 
   const [type, setType] = useState('running')
   const [name, setName] = useState('')
+  // Fallback segments — the structure used for any athlete with no
+  // assignment of a matching type that day. Editable, defaulting from the
+  // day's most common assignment when one exists.
   const [segments, setSegments] = useState([emptySegment()])
 
-  // athleteId -> flat array of {hours,minutes,seconds}, one per column of
-  // columnDefs below (segment-by-segment, then rep-by-rep within each).
+  // athleteId -> flat array of {hours,minutes,seconds}, one per that
+  // athlete's OWN column (see perAthleteColumnDefs below) — never a shared
+  // column set, since different athletes' columns can mean different things.
   const [entries, setEntries] = useState({})
 
   const [saving, setSaving] = useState(false)
@@ -211,7 +248,7 @@ export default function SplitRecorder({ athletes }) {
         setSegments(defaults.segments)
 
         const assignmentMap = new Map(assignments.map((a) => [a.athlete_id, a]))
-        setEntries(buildInitialEntries(athletes, workouts, defaults.type, defaults.segments, assignmentMap))
+        setEntries(buildInitialEntries(athletes, workouts, defaults.type, assignmentMap, defaults.segments))
       })
       .catch((err) => setLoadError(err.message))
       .finally(() => setLoadingDay(false))
@@ -220,8 +257,8 @@ export default function SplitRecorder({ athletes }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(loadDay, [date])
 
-  // Keeps every segment's unit valid when the coach switches sport type
-  // after load — a default carried over from e.g. a swim assignment
+  // Keeps every fallback segment's unit valid when the coach switches sport
+  // type after load — a default carried over from e.g. a swim assignment
   // ("yards") isn't one of bike's own unit options.
   useEffect(() => {
     setSegments((prev) =>
@@ -230,11 +267,18 @@ export default function SplitRecorder({ athletes }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type])
 
-  // Adding/removing a segment, or changing one's rep count, shifts every
-  // later column's flattened position — clearing `entries` avoids already-
-  // typed times silently landing in the wrong column after such a
-  // structural edit (a plain label/distance/unit edit doesn't move any
-  // column, so those don't need to touch it).
+  // Every one of these can change how many columns some athlete has (a
+  // fallback reps edit resizes any unassigned athlete's columns; switching
+  // type changes who uses their own assignment vs. the fallback at all) —
+  // `entries` is keyed by flat column index, so keeping stale values around
+  // after a structural change would land in the wrong column once things
+  // shift. See the columnLayoutKey/remount note further down for why
+  // clearing the state isn't enough on its own.
+  function handleTypeChange(nextType) {
+    setType(nextType)
+    setEntries({})
+  }
+
   function updateSegment(index, field, value) {
     setSegments((prev) => prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)))
     if (field === 'reps') setEntries({})
@@ -258,44 +302,61 @@ export default function SplitRecorder({ athletes }) {
     })
   }
 
-  // Flattens segments into one column per rep, in order — this is the grid's
-  // actual column list, and the index into it is what `entries` is keyed on.
-  const columnDefs = useMemo(() => {
-    const defs = []
-    segments.forEach((seg, segIndex) => {
-      const reps = Math.max(1, Number(seg.reps) || 1)
-      for (let repIndex = 0; repIndex < reps; repIndex++) {
-        defs.push({ segIndex, repIndex, seg, isSegmentStart: repIndex === 0 && segIndex > 0 })
-      }
-    })
-    return defs
-  }, [segments])
+  // Each athlete's own segments/columns — computed once per athlete, from
+  // their own assignment when it matches, else the fallback. This is what
+  // makes the grid show Mitch's real 200m/100m structure and Simon's real
+  // 2mi/400m/200m structure side by side, instead of forcing both onto one
+  // shared shape.
+  const perAthleteSegments = useMemo(() => {
+    const map = new Map()
+    for (const athlete of athletes) map.set(athlete.id, resolveAthleteSegments(athlete, type, assignmentByAthleteId, segments))
+    return map
+  }, [athletes, type, assignmentByAthleteId, segments])
+
+  const perAthleteColumnDefs = useMemo(() => {
+    const map = new Map()
+    for (const athlete of athletes) map.set(athlete.id, flattenSegments(perAthleteSegments.get(athlete.id)))
+    return map
+  }, [athletes, perAthleteSegments])
+
+  // Every athlete's row is padded out to the same total column count — the
+  // longest of anyone's own structure — with the extra columns beyond an
+  // athlete's own showing as a plain "N/A", not an editable cell.
+  const maxColumns = Math.max(1, ...athletes.map((a) => perAthleteColumnDefs.get(a.id)?.length || 1))
 
   // TimeTextInput only ever reads its `value` prop once, on mount (see that
-  // component) — so clearing `entries` after a structural segment edit
-  // isn't enough on its own to blank out an already-typed cell that keeps
-  // the same column position. Keying the grid on the column layout (in
-  // addition to `date`) forces a full remount whenever the layout shifts,
-  // the same trick already used for switching days.
-  const columnLayoutKey = segments.map((s) => Math.max(1, Number(s.reps) || 1)).join('-')
+  // component) — so clearing `entries` after a structural change isn't
+  // enough on its own to blank out an already-typed cell that keeps the
+  // same column position. Keying the grid on every athlete's own column
+  // count forces a full remount whenever any of them shifts, the same
+  // trick already used for switching days. `type` is included directly
+  // (not just via its effect on column counts) because a type switch where
+  // every athlete happens to fall back to the same shared structure both
+  // before and after would otherwise leave this signature unchanged, even
+  // though `entries` was just cleared — no remount would mean the inputs
+  // keep showing their stale pre-clear text regardless.
+  const columnLayoutKey = `${type}-${athletes.map((a) => perAthleteColumnDefs.get(a.id)?.length || 0).join('-')}`
 
   const setupValid =
     name.trim() !== '' &&
     segments.length > 0 &&
     segments.every((s) => Number(s.distanceValue) > 0 && Number(s.reps) >= 1)
 
-  // Builds this athlete's segments payload for saving: only the reps they
-  // actually have a time for (in order, gaps simply dropped), and only
-  // segments with at least one such rep — a segment nobody filled in for
-  // this athlete is left out entirely rather than sent as an empty one.
+  // Builds this athlete's segments payload for saving, from THEIR OWN
+  // segments/columns — only the reps they actually have a time for (in
+  // order, gaps simply dropped), and only segments with at least one such
+  // rep — a segment nobody filled in for this athlete is left out entirely
+  // rather than sent as an empty one.
   function buildAthletePayload(athleteId) {
+    const athleteSegments = perAthleteSegments.get(athleteId) || []
+    const defs = perAthleteColumnDefs.get(athleteId) || []
     const values = entries[athleteId] || []
-    const bySegment = segments.map(() => [])
-    columnDefs.forEach((def, flatIndex) => {
+    const bySegment = athleteSegments.map(() => [])
+    defs.forEach((def, flatIndex) => {
       const v = values[flatIndex]
       if (v && hmsToSeconds(v) > 0) bySegment[def.segIndex].push(v)
     })
-    return segments
+    return athleteSegments
       .map((seg, i) => ({ label: seg.label, distanceValue: Number(seg.distanceValue), distanceUnit: seg.distanceUnit, repTimes: bySegment[i] }))
       .filter((s) => s.repTimes.length > 0)
   }
@@ -303,7 +364,7 @@ export default function SplitRecorder({ athletes }) {
   async function handleSave() {
     setSaveError('')
     if (!setupValid) {
-      setSaveError('Enter a workout name and a positive distance for every segment before saving.')
+      setSaveError('Enter a workout name and a positive distance for every fallback segment before saving.')
       return
     }
 
@@ -365,14 +426,14 @@ export default function SplitRecorder({ athletes }) {
 
       <div className="type-toggle">
         {SPORT_TYPES.map((t) => (
-          <button key={t} type="button" className={type === t ? 'active' : ''} onClick={() => setType(t)}>
+          <button key={t} type="button" className={type === t ? 'active' : ''} onClick={() => handleTypeChange(t)}>
             {workoutTypeLabel(t)}
           </button>
         ))}
       </div>
 
       <fieldset className="splits-fieldset split-recorder-segments">
-        <legend>Segments</legend>
+        <legend>Fallback segments (used for any athlete with no matching assignment today)</legend>
         {segments.map((seg, i) => (
           <div className="form-row exercise-row" key={seg.key}>
             <label>
@@ -430,56 +491,60 @@ export default function SplitRecorder({ athletes }) {
       ) : athletes.length === 0 ? (
         <p className="empty-state">No approved athletes yet.</p>
       ) : !setupValid ? (
-        <p className="empty-state">Enter a workout name and a positive distance for every segment above to start recording.</p>
+        <p className="empty-state">Enter a workout name and a positive distance for every fallback segment above to start recording.</p>
       ) : (
         <div className="assignment-grid-wrap" key={`${date}-${columnLayoutKey}`}>
           <table className="assignment-grid split-recorder-grid">
-            <thead>
-              <tr>
-                <th className="grid-corner-cell" />
-                {columnDefs.map((def, i) => (
-                  <th key={i} className={`grid-day-header${def.isSegmentStart ? ' split-recorder-segment-start' : ''}`}>
-                    {formatDistanceValue(Number(def.seg.distanceValue) || 0, def.seg.distanceUnit)}
-                    {unitAbbrev(def.seg.distanceUnit)} ({def.repIndex + 1})
-                  </th>
-                ))}
-              </tr>
-            </thead>
             <tbody>
               {athletes.map((athlete) => {
-                const athleteAssignment = assignmentByAthleteId.get(athlete.id)
-                // Matched once per athlete row (not per cell) — this
-                // athlete's own assignment segments, aligned to the grid's
-                // segment positions by distance/unit, never by index.
-                const matchedTargetSegments =
-                  athleteAssignment && athleteAssignment.type === type
-                    ? matchSegmentsToAthlete(segments, athleteAssignment[ASSIGNED_SEGMENTS_FIELD_BY_TYPE[type]] || [])
-                    : segments.map(() => null)
+                const defs = perAthleteColumnDefs.get(athlete.id) || []
                 return (
-                  <tr key={athlete.id}>
-                    <th scope="row" className="grid-athlete-cell">
-                      {athlete.name || 'Unnamed athlete'}
-                    </th>
-                    {columnDefs.map((def, i) => {
-                      const matchedSeg = matchedTargetSegments[def.segIndex]
-                      const prescribed = matchedSeg ? prescribedSecondsFromMatchedSegment(matchedSeg, type, def.repIndex) : null
-                      // No matching segment at all for this athlete (e.g.
-                      // they weren't assigned this distance) reads as "N/A"
-                      // — distinct from having the segment but just no
-                      // recorded target for this specific rep.
-                      const placeholder = !matchedSeg ? 'N/A' : prescribed ? secondsToClock(prescribed) : 'e.g. 6:45'
-                      return (
-                        <td key={i} className={`grid-cell split-recorder-cell${def.isSegmentStart ? ' split-recorder-segment-start' : ''}`}>
-                          <TimeTextInput
-                            value={entries[athlete.id]?.[i] || { hours: 0, minutes: 0, seconds: 0 }}
-                            onChange={(v) => updateCell(i, athlete.id, v)}
-                            ariaLabel={`${athlete.name || 'Athlete'} ${segmentDisplayName(def.seg)} rep ${def.repIndex + 1}`}
-                            placeholder={placeholder}
-                          />
-                        </td>
-                      )
-                    })}
-                  </tr>
+                  <Fragment key={athlete.id}>
+                    <tr className="split-recorder-athlete-header-row">
+                      <th scope="row" className="grid-athlete-cell">
+                        {athlete.name || 'Unnamed athlete'}
+                      </th>
+                      {Array.from({ length: maxColumns }, (_, i) => {
+                        const def = defs[i]
+                        return (
+                          <th key={i} className={`grid-day-header${def?.isSegmentStart ? ' split-recorder-segment-start' : ''}`}>
+                            {def ? (
+                              <>
+                                {formatDistanceValue(Number(def.seg.distanceValue) || 0, def.seg.distanceUnit)}
+                                {unitAbbrev(def.seg.distanceUnit)} ({def.repIndex + 1})
+                              </>
+                            ) : (
+                              'N/A'
+                            )}
+                          </th>
+                        )
+                      })}
+                    </tr>
+                    <tr>
+                      <th scope="row" className="grid-athlete-cell" />
+                      {Array.from({ length: maxColumns }, (_, i) => {
+                        const def = defs[i]
+                        if (!def) {
+                          return (
+                            <td key={i} className="grid-cell split-recorder-cell split-recorder-na-cell">
+                              N/A
+                            </td>
+                          )
+                        }
+                        const prescribed = prescribedSecondsForDef(def, type)
+                        return (
+                          <td key={i} className={`grid-cell split-recorder-cell${def.isSegmentStart ? ' split-recorder-segment-start' : ''}`}>
+                            <TimeTextInput
+                              value={entries[athlete.id]?.[i] || { hours: 0, minutes: 0, seconds: 0 }}
+                              onChange={(v) => updateCell(i, athlete.id, v)}
+                              ariaLabel={`${athlete.name || 'Athlete'} ${segmentDisplayName(def.seg)} rep ${def.repIndex + 1}`}
+                              placeholder={prescribed ? secondsToClock(prescribed) : 'e.g. 6:45'}
+                            />
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  </Fragment>
                 )
               })}
             </tbody>

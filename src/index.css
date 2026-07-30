@@ -3295,11 +3295,15 @@ button.link-button.danger {
 }
 
 /* --- Split Recorder (coach Assignments tab) — reuses the assignment
-   grid's sticky-header/sticky-first-column table (.assignment-grid-wrap /
-   .assignment-grid) for the same large-roster scrolling behavior, but its
-   cells hold a live time-entry input rather than opening a modal on click,
-   so .split-recorder-grid overrides the base grid-cell's cursor/selection
-   styling meant for that click-to-open interaction. --- */
+   grid's sticky-first-column table (.assignment-grid-wrap / .assignment-grid)
+   for the same large-roster horizontal scrolling, but its cells hold a live
+   time-entry input rather than opening a modal on click, so
+   .split-recorder-grid overrides the base grid-cell's cursor/selection
+   styling meant for that click-to-open interaction. There's no single
+   shared <thead> here (and so no sticky-top header) — each athlete can
+   have a completely different segment structure the same day, so every
+   athlete gets their own header row directly above their own data row
+   instead of one column header shared by everyone. --- */
 
 .split-recorder {
   display: flex;
@@ -3343,6 +3347,32 @@ button.link-button.danger {
    reads as distinct groups. */
 .assignment-grid.split-recorder-grid .split-recorder-segment-start {
   border-left: 2px solid var(--border);
+}
+
+/* The per-athlete header row — visually reads as a header (bold, tinted)
+   despite living in <tbody> alongside its data row rather than in a
+   shared <thead>. A heavier top border marks where one athlete's block
+   ends and the next begins. */
+.split-recorder-athlete-header-row th.grid-day-header {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--accent-bg);
+  border-top: 2px solid var(--border);
+}
+
+.split-recorder-athlete-header-row .grid-athlete-cell {
+  border-top: 2px solid var(--border);
+}
+
+/* Padding cell for an athlete with fewer total reps than the grid's widest
+   athlete — never a fillable input, just a plain marker that this athlete
+   has no such column at all. */
+.split-recorder-na-cell {
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--bg);
+  cursor: default;
 }
 
 .split-recorder-actions {
