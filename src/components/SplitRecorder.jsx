@@ -373,7 +373,7 @@ export default function SplitRecorder({ athletes }) {
                   return (
                     <Fragment key={athlete.id}>
                       <tr className="split-recorder-athlete-header-row">
-                        <th scope="row" className="grid-athlete-cell split-recorder-athlete-name">
+                        <th scope="rowgroup" rowSpan={2} className="grid-athlete-cell split-recorder-athlete-name">
                           <span className="split-recorder-reorder-buttons">
                             <button
                               type="button"
@@ -411,7 +411,6 @@ export default function SplitRecorder({ athletes }) {
                         })}
                       </tr>
                       <tr>
-                        <th scope="row" className="grid-athlete-cell" />
                         {Array.from({ length: maxColumns }, (_, i) => {
                           const def = defs[i]
                           if (!def) {
