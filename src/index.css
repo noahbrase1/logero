@@ -3326,10 +3326,6 @@ button.link-button.danger {
   color: var(--text-muted);
 }
 
-.split-recorder-segments .exercise-row {
-  align-items: flex-end;
-}
-
 .assignment-grid.split-recorder-grid .grid-cell {
   cursor: default;
   user-select: text;
@@ -3363,6 +3359,43 @@ button.link-button.danger {
 
 .split-recorder-athlete-header-row .grid-athlete-cell {
   border-top: 2px solid var(--border);
+}
+
+.split-recorder-athlete-name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Session-only reorder controls (▲/▼) — never persisted, just a
+   convenience for the coach to match e.g. the order athletes will
+   actually run in. Stacked tight since they're squeezed into the same
+   sticky name cell as the athlete's name. */
+.split-recorder-reorder-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.split-recorder-reorder-buttons button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 0.85rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.split-recorder-reorder-buttons button:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.split-recorder-reorder-buttons button:disabled {
+  opacity: 0.3;
 }
 
 /* Padding cell for an athlete with fewer total reps than the grid's widest
