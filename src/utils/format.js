@@ -437,7 +437,8 @@ export function sumAssignedTimeSeconds(assignment) {
 
 // The "what the athlete actually did" headline for a logged running/swim/
 // bike/other workout — an ordered list of strings (distance, total time)
-// meant to be joined with " · " by the caller. No pace — this app dropped
+// meant to be joined with " @ " by the caller, matching the per-segment
+// line convention. No pace — this app dropped
 // showing pace anywhere in the log display (see SegmentEditor's own live
 // preview while entering a time, which is unaffected). Total time only
 // appears when sumLoggedTimeSeconds returns non-zero, i.e. every segment's
