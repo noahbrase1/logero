@@ -3326,6 +3326,21 @@ button.link-button.danger {
   color: var(--text-muted);
 }
 
+/* `border-collapse: collapse` (the base .assignment-grid rule) is a known
+   WebKit/Safari trap for `position: sticky` on table cells — both iOS
+   Safari and desktop Safari fail to actually pin a sticky <th>/<td> when
+   its table collapses borders, instead leaving it in normal scroll flow
+   with visible rendering artifacts where it partially overlaps scrolled-
+   past content. AssignmentGrid's own sticky athlete-name column happens
+   not to hit this in practice, but this app's first genuinely mobile-first
+   grid did, hard, on the PWA. `border-spacing: 0` keeps cells visually
+   touching the same way `collapse` did, just via the mode Safari's sticky
+   implementation actually supports. */
+.assignment-grid.split-recorder-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
 .assignment-grid.split-recorder-grid .grid-cell {
   cursor: default;
   user-select: text;
