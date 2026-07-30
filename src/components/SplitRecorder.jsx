@@ -68,19 +68,45 @@ function computeSetupDefaults(assignments) {
   return { type: rep.type, name, segments }
 }
 
-// This athlete's own assigned target time for one (segment, rep) column,
-// paired to the setup's segment by *position* — the same "paired by index"
-// convention WorkoutCard's own actual/prescribed segments already use —
-// not by matching distance, so it still works even if the coach adjusted a
-// segment's distance from what was originally assigned. null when this
-// athlete has no assignment of a matching type, that assignment has no
-// segment at this position, or that rep has no recorded target.
-function prescribedSecondsForColumn(assignment, type, segIndex, repIndex) {
-  if (!assignment || assignment.type !== type) return null
-  const segs = assignment[ASSIGNED_SEGMENTS_FIELD_BY_TYPE[type]] || []
-  const seg = segs[segIndex]
-  if (!seg) return null
-  const repRows = seg[ASSIGNED_REPS_FIELD_BY_TYPE[type]] || []
+// Matches each of the grid's setup segments to the best-fitting segment in
+// `candidateSegments` (one athlete's own assignment or previously-saved
+// workout segments) — by (distance_value, distance_unit) first, since
+// that's the only thing guaranteed comparable across an assignment that may
+// not have the same segment structure as the grid's (different athletes
+// can be assigned completely different workouts the same day). A grid
+// segment's own label is used only as a tiebreaker among multiple
+// same-distance candidates, never as the primary key, since it's free text
+// that can legitimately differ between the coach's setup and an
+// individually-assigned segment describing the same distance. Crucially,
+// this is NEVER positional (segment N of the grid vs. segment N of the
+// athlete) — an athlete missing one of the grid's segments (e.g. no 400m
+// repeats) must never have a *different* segment's data (e.g. their 200m)
+// silently line up against the grid's 400m columns just because it happens
+// to sit at the same array index. Each candidate is matched to at most one
+// grid segment (removed from `remaining` once claimed), and a grid segment
+// with nothing matching returns null for that position.
+function matchSegmentsToAthlete(gridSegments, candidateSegments) {
+  const remaining = (candidateSegments || []).map((c, idx) => ({ c, idx }))
+  return gridSegments.map((gridSeg) => {
+    const gridDistance = Number(gridSeg.distanceValue)
+    const gridLabel = (gridSeg.label || '').trim().toLowerCase()
+    const sameDistance = remaining.filter(
+      ({ c }) => Number(c.distance_value) === gridDistance && c.distance_unit === gridSeg.distanceUnit
+    )
+    if (sameDistance.length === 0) return null
+    const preferred = (gridLabel && sameDistance.find(({ c }) => (c.label || '').trim().toLowerCase() === gridLabel)) || sameDistance[0]
+    remaining.splice(remaining.indexOf(preferred), 1)
+    return preferred.c
+  })
+}
+
+// This athlete's own assigned target time for one rep of a *matched*
+// segment (see matchSegmentsToAthlete) — null when that rep has no
+// recorded target, distinct from the caller's own "no matching segment at
+// all" case, which is handled separately so the two can be shown
+// differently (a generic hint vs. "N/A").
+function prescribedSecondsFromMatchedSegment(matchedSeg, type, repIndex) {
+  const repRows = matchedSeg[ASSIGNED_REPS_FIELD_BY_TYPE[type]] || []
   if (repRows.length > 0) {
     const row = repRows[repIndex]
     if (!row) return null
@@ -90,9 +116,9 @@ function prescribedSecondsForColumn(assignment, type, segIndex, repIndex) {
   // A target segment saved before per-rep rows existed has none yet — its
   // single legacy target applies to every rep.
   const single = hmsToSeconds({
-    hours: seg.target_time_hours,
-    minutes: seg.target_time_minutes,
-    seconds: seg.target_time_seconds,
+    hours: matchedSeg.target_time_hours,
+    minutes: matchedSeg.target_time_minutes,
+    seconds: matchedSeg.target_time_seconds,
   })
   return single > 0 ? single : null
 }
@@ -111,7 +137,9 @@ function findExistingEntry(workouts, athleteId, type, assignmentId) {
 
 // Reads a previously-saved split-recorder workout's segments back into a
 // flat array matching the current setup's column order (segment-by-
-// segment, then rep-by-rep within each). A saved segment only ever holds
+// segment, then rep-by-rep within each) — matched to the setup's segments
+// the same content-based way as prescribed targets (matchSegmentsToAthlete),
+// never positionally, for the same reason. A saved segment only ever holds
 // however many reps were actually filled in last time (gaps are dropped at
 // save time, not preserved), so this places them in the first N columns of
 // the matching setup segment — there's no way to recover which original
@@ -126,10 +154,11 @@ function buildInitialEntries(athletes, workouts, type, segments, assignmentByAth
     if (!existing) continue
 
     const savedSegments = existing[LOGGED_SEGMENTS_FIELD_BY_TYPE[existing.type]] || []
+    const matchedSavedSegments = matchSegmentsToAthlete(segments, savedSegments)
     const repsField = LOGGED_REPS_FIELD_BY_TYPE[existing.type]
     const flatValues = []
     segments.forEach((setupSeg, segIndex) => {
-      const savedSeg = savedSegments[segIndex]
+      const savedSeg = matchedSavedSegments[segIndex]
       const savedReps = savedSeg ? savedSeg[repsField] || [] : []
       const columnCount = Math.max(1, Number(setupSeg.reps) || 1)
       for (let i = 0; i < columnCount; i++) {
@@ -419,20 +448,33 @@ export default function SplitRecorder({ athletes }) {
             <tbody>
               {athletes.map((athlete) => {
                 const athleteAssignment = assignmentByAthleteId.get(athlete.id)
+                // Matched once per athlete row (not per cell) — this
+                // athlete's own assignment segments, aligned to the grid's
+                // segment positions by distance/unit, never by index.
+                const matchedTargetSegments =
+                  athleteAssignment && athleteAssignment.type === type
+                    ? matchSegmentsToAthlete(segments, athleteAssignment[ASSIGNED_SEGMENTS_FIELD_BY_TYPE[type]] || [])
+                    : segments.map(() => null)
                 return (
                   <tr key={athlete.id}>
                     <th scope="row" className="grid-athlete-cell">
                       {athlete.name || 'Unnamed athlete'}
                     </th>
                     {columnDefs.map((def, i) => {
-                      const prescribed = prescribedSecondsForColumn(athleteAssignment, type, def.segIndex, def.repIndex)
+                      const matchedSeg = matchedTargetSegments[def.segIndex]
+                      const prescribed = matchedSeg ? prescribedSecondsFromMatchedSegment(matchedSeg, type, def.repIndex) : null
+                      // No matching segment at all for this athlete (e.g.
+                      // they weren't assigned this distance) reads as "N/A"
+                      // — distinct from having the segment but just no
+                      // recorded target for this specific rep.
+                      const placeholder = !matchedSeg ? 'N/A' : prescribed ? secondsToClock(prescribed) : 'e.g. 6:45'
                       return (
                         <td key={i} className={`grid-cell split-recorder-cell${def.isSegmentStart ? ' split-recorder-segment-start' : ''}`}>
                           <TimeTextInput
                             value={entries[athlete.id]?.[i] || { hours: 0, minutes: 0, seconds: 0 }}
                             onChange={(v) => updateCell(i, athlete.id, v)}
                             ariaLabel={`${athlete.name || 'Athlete'} ${segmentDisplayName(def.seg)} rep ${def.repIndex + 1}`}
-                            placeholder={prescribed ? secondsToClock(prescribed) : 'e.g. 6:45'}
+                            placeholder={placeholder}
                           />
                         </td>
                       )
