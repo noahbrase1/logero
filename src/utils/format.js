@@ -389,14 +389,20 @@ export function formatRepTimesList(repSecondsList) {
 // newly-logged workouts. 0 for lifting/note.
 export function sumLoggedTimeSeconds(workout) {
   if (!workout) return 0
-  if ((workout.type === 'running' || workout.type === 'other') && workout.total_duration_seconds) {
-    return workout.total_duration_seconds
-  }
   const field = LOGGED_SEGMENTS_FIELD_BY_TYPE[workout.type]
   const repsField = LOGGED_REPS_FIELD_BY_TYPE[workout.type]
   if (!field || !repsField) return 0
   const segments = workout[field] || []
   if (!allLoggedRepsRecorded(segments, repsField)) return 0
+  // Only trust the precomputed total_duration_seconds (which may include
+  // rest/cooldown time the segments don't capture) once every segment's
+  // every rep is independently confirmed complete above — a workout logged
+  // before that all-or-nothing rule existed can have this column set from a
+  // manual entry despite incomplete segments, and this must never surface a
+  // total in that case.
+  if ((workout.type === 'running' || workout.type === 'other') && workout.total_duration_seconds) {
+    return workout.total_duration_seconds
+  }
   return segments.reduce((total, seg) => {
     const repSeconds = (seg[repsField] || []).reduce(
       (t, r) => t + hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds }),
