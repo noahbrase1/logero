@@ -4,27 +4,23 @@ import { supabase } from './supabaseClient'
 // via the record_split_recorder_entry SECURITY DEFINER RPC (see
 // supabase/split_recorder_schema.sql for why this can't be a plain client
 // insert — a coach has no RLS write path into another athlete's `workouts`
-// row for any type but 'note'). `repTimes`: [{hours,minutes,seconds}, ...],
-// already trimmed to just the columns the coach actually filled in.
-export async function recordSplitEntry({
-  athleteId,
-  date,
-  type,
-  name,
-  distanceValue,
-  distanceUnit,
-  assignmentId,
-  repTimes,
-}) {
+// row for any type but 'note'). `segments`: [{label, distanceValue,
+// distanceUnit, repTimes: [{hours,minutes,seconds}, ...]}, ...] — already
+// trimmed to just the segments/reps the coach actually filled in for this
+// athlete.
+export async function recordSplitEntry({ athleteId, date, type, name, assignmentId, segments }) {
   const { data, error } = await supabase.rpc('record_split_recorder_entry', {
     p_athlete_id: athleteId,
     p_date: date,
     p_type: type,
     p_name: name,
-    p_distance_value: distanceValue,
-    p_distance_unit: distanceUnit,
     p_assignment_id: assignmentId || null,
-    p_rep_times: repTimes,
+    p_segments: segments.map((s) => ({
+      label: s.label || null,
+      distance_value: s.distanceValue,
+      distance_unit: s.distanceUnit,
+      rep_times: s.repTimes,
+    })),
   })
   if (error) throw error
   return data

@@ -3322,6 +3322,10 @@ button.link-button.danger {
   color: var(--text-muted);
 }
 
+.split-recorder-segments .exercise-row {
+  align-items: flex-end;
+}
+
 .assignment-grid.split-recorder-grid .grid-cell {
   cursor: default;
   user-select: text;
@@ -3332,6 +3336,13 @@ button.link-button.danger {
 
 .assignment-grid.split-recorder-grid .grid-cell:hover {
   background: var(--bg);
+}
+
+/* A subtle divider where one segment's reps end and the next begin (e.g.
+   warm-up -> repeats -> cool-down), so a long flattened column list still
+   reads as distinct groups. */
+.assignment-grid.split-recorder-grid .split-recorder-segment-start {
+  border-left: 2px solid var(--border);
 }
 
 .split-recorder-actions {

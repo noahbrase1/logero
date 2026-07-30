@@ -117,7 +117,7 @@ export default function CoachAssignmentsPage() {
         <h1>Assigned workouts</h1>
       </div>
 
-      {canCreate && (
+      {canCreate && view !== 'splits' && (
         <div className="export-day-toolbar">
           <label>
             Export day
@@ -128,7 +128,7 @@ export default function CoachAssignmentsPage() {
           </button>
         </div>
       )}
-      {exportError && <p className="form-error">{exportError}</p>}
+      {view !== 'splits' && exportError && <p className="form-error">{exportError}</p>}
 
       <div className="type-toggle">
         {canCreate && (
