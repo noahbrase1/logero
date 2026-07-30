@@ -3294,6 +3294,58 @@ button.link-button.danger {
   margin-top: 1rem;
 }
 
+/* --- Split Recorder (coach Assignments tab) — reuses the assignment
+   grid's sticky-header/sticky-first-column table (.assignment-grid-wrap /
+   .assignment-grid) for the same large-roster scrolling behavior, but its
+   cells hold a live time-entry input rather than opening a modal on click,
+   so .split-recorder-grid overrides the base grid-cell's cursor/selection
+   styling meant for that click-to-open interaction. --- */
+
+.split-recorder {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.split-recorder-setup {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.split-recorder-setup label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.assignment-grid.split-recorder-grid .grid-cell {
+  cursor: default;
+  user-select: text;
+  height: auto;
+  min-width: 110px;
+  padding: 0.35rem 0.4rem;
+}
+
+.assignment-grid.split-recorder-grid .grid-cell:hover {
+  background: var(--bg);
+}
+
+.split-recorder-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.split-recorder-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 /* --- Export day (assignments) --- */
 
 .export-day-toolbar {

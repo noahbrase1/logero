@@ -7,6 +7,7 @@ import {
 } from '../lib/assignments'
 import { formatDate, summarizeAssignment } from '../utils/format'
 import { addDays, formatWeekRangeLabel, startOfWeek, toDateStr } from '../utils/week'
+import { mapWithConcurrency } from '../utils/concurrency'
 import { useToast } from '../context/ToastContext'
 import AssignmentForm from './AssignmentForm'
 import Modal from './Modal'
@@ -14,29 +15,6 @@ import Modal from './Modal'
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const keyFor = (athleteId, dateStr) => `${athleteId}|${dateStr}`
-
-// Runs `worker` over `items` with at most `concurrency` in flight at once —
-// avoids both an unbounded Promise.all (up to 50 athletes × 7 days = 350
-// simultaneous requests for a full grid-to-grid paste) and slow sequential
-// awaits. Each item is independent (per the paste requirement that pasted
-// cells aren't linked to each other), so one failing doesn't stop the rest —
-// failures are collected and returned rather than thrown.
-async function mapWithConcurrency(items, concurrency, worker) {
-  const errors = []
-  let index = 0
-  async function run() {
-    while (index < items.length) {
-      const item = items[index++]
-      try {
-        await worker(item)
-      } catch (err) {
-        errors.push(err)
-      }
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, run))
-  return errors
-}
 
 // Coach-only weekly athlete×day assignment grid with click-drag/ctrl-click
 // selection and a copy/paste system built on one shared mechanism (see

@@ -7,6 +7,7 @@ import { toDateStr } from '../utils/week'
 import AssignmentForm from '../components/AssignmentForm'
 import AssignmentGrid from '../components/AssignmentGrid'
 import ExportDayModal from '../components/ExportDayModal'
+import SplitRecorder from '../components/SplitRecorder'
 import { useToast } from '../context/ToastContext'
 
 export default function CoachAssignmentsPage() {
@@ -138,9 +139,16 @@ export default function CoachAssignmentsPage() {
         <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
           List
         </button>
+        {canCreate && (
+          <button type="button" className={view === 'splits' ? 'active' : ''} onClick={() => setView('splits')}>
+            Record Splits
+          </button>
+        )}
       </div>
 
-      {view === 'grid' && canCreate ? (
+      {view === 'splits' && canCreate ? (
+        <SplitRecorder athletes={athletes} />
+      ) : view === 'grid' && canCreate ? (
         <AssignmentGrid athletes={athletes} coachId={user.id} />
       ) : (
         <>

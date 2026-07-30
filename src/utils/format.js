@@ -249,7 +249,10 @@ export const ASSIGNED_SEGMENTS_FIELD_BY_TYPE = {
   other: 'assigned_other_segments',
 }
 
-const LOGGED_SEGMENTS_FIELD_BY_TYPE = {
+// Exported so SplitRecorder can read an existing logged workout's single
+// segment back out the same way LOGGED_REPS_FIELD_BY_TYPE already lets it
+// read that segment's reps.
+export const LOGGED_SEGMENTS_FIELD_BY_TYPE = {
   running: 'running_segments',
   swim: 'swim_segments',
   bike: 'bike_segments',
