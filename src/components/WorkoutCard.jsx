@@ -72,14 +72,13 @@ export default function WorkoutCard({ workout, showAthleteName = false, hideEdit
   )
 }
 
-// Shared body for running/swim/bike/other: a minimal thumbnail (distance,
-// total time only when every segment's every rep actually has a time
-// recorded — see sumLoggedTimeSeconds — plus effort) and a "View splits"
-// dropdown revealing everything else: the overall Workout/Prescribed totals,
-// then each segment's own actual line and (directly below it) its
-// prescribed line, paired by position. Shown whenever there's any segment
-// data at all, actual or target, since the thumbnail no longer shows any of
-// it.
+// Shared body for running/swim/bike/other: a minimal thumbnail (Total
+// distance — total time only when every segment's every rep actually has a
+// time recorded, see sumLoggedTimeSeconds — Prescribed total when the log
+// fulfills an assignment, and Effort) and a "View splits" dropdown revealing
+// each segment's own actual line directly above its prescribed line, paired
+// by position. Shown whenever there's any segment data at all, actual or
+// target, since the thumbnail itself never breaks down by segment.
 function ActualAndPrescribed({ workout, segments }) {
   const loggedSegments = segments || []
   const headline = loggedWorkoutHeadline(workout)
@@ -95,11 +94,16 @@ function ActualAndPrescribed({ workout, segments }) {
   return (
     <>
       <div className="workout-headline">
-        {headline.length > 0 ? headline.join(' · ') : 'No distance or time recorded'}
+        Total: {headline.length > 0 ? headline.join(' · ') : 'No distance or time recorded'}
       </div>
+      {assignment && (
+        <div className="workout-headline-prescribed">
+          Prescribed: {prescribedHeadline.length > 0 ? prescribedHeadline.join(' · ') : '—'}
+        </div>
+      )}
       {workout.perceived_effort && (
         <div className="workout-collapsed-meta">
-          <span className="workout-headline-meta">Effort {workout.perceived_effort}/10</span>
+          <span className="workout-headline-meta">Effort: {workout.perceived_effort}/10</span>
         </div>
       )}
 
@@ -108,17 +112,6 @@ function ActualAndPrescribed({ workout, segments }) {
           <summary>View splits</summary>
 
           <div className="segment-list">
-            <div className="segment-summary">
-              <div className="segment-summary-title">
-                Workout: {headline.length > 0 ? headline.join(' · ') : '—'}
-              </div>
-              {assignment && (
-                <div className="segment-summary-detail">
-                  Prescribed: {prescribedHeadline.length > 0 ? prescribedHeadline.join(' · ') : '—'}
-                </div>
-              )}
-            </div>
-
             {Array.from({ length: rowCount }, (_, i) => (
               <SegmentPair key={i} type={workout.type} actualSeg={loggedSegments[i]} targetSeg={targetSegments[i]} />
             ))}
