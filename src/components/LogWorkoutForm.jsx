@@ -14,12 +14,11 @@ import {
   updateSwimWorkout,
 } from '../lib/workouts'
 import { fetchAssignmentById } from '../lib/assignments'
-import { distanceToMeters, hmsToSeconds, metersToMiles, roundMiles, secondsToHms } from '../utils/format'
+import { distanceToMeters, hmsToSeconds, metersToMiles, roundMiles, secondsToClock } from '../utils/format'
 import RunningSegmentsEditor, { emptySegment } from './RunningSegmentsEditor'
 import SwimSegmentsEditor, { emptySwimSegment } from './SwimSegmentsEditor'
 import BikeSegmentsEditor, { emptyBikeSegment } from './BikeSegmentsEditor'
 import OtherSegmentsEditor, { emptySegment as emptyOtherSegment } from './OtherSegmentsEditor'
-import TimeTextInput from './TimeTextInput'
 import QuickNoteForm from './QuickNoteForm'
 import { useToast } from '../context/ToastContext'
 
@@ -29,6 +28,15 @@ const emptyExercise = () => ({ exerciseName: '', sets: '', reps: '', weight: '' 
 
 function sumSegmentsSeconds(segments) {
   return segments.reduce((total, seg) => total + seg.repTimes.reduce((t, rt) => t + hmsToSeconds(rt), 0), 0)
+}
+
+// True only if every segment has a time recorded for every one of its reps
+// — the total duration is calculated from segments and shown read-only
+// (never a spot to type a total directly), and only once there's nothing
+// left unfilled; a partial total would just be wrong, not merely
+// approximate.
+function allSegmentsComplete(segments) {
+  return segments.length > 0 && segments.every((seg) => seg.repTimes.length > 0 && seg.repTimes.every((rt) => hmsToSeconds(rt) > 0))
 }
 
 function sumSegmentsDistanceMiles(segments) {
@@ -106,12 +114,6 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
   const [swimSegments, setSwimSegments] = useState([emptySwimSegment()])
   const [bikeSegments, setBikeSegments] = useState([emptyBikeSegment()])
   const [otherSegments, setOtherSegments] = useState([emptyOtherSegment()])
-  const [totalDuration, setTotalDuration] = useState({ hours: 0, minutes: 0, seconds: 0 })
-  const [totalDurationManual, setTotalDurationManual] = useState(false)
-  // Bumped only on *programmatic* total-duration changes (auto-sum, prefill,
-  // reset) to force the TimeTextInput to remount and show the new value —
-  // never on the athlete's own typing, so their input isn't disrupted.
-  const [totalDurationResetKey, setTotalDurationResetKey] = useState(0)
 
   const [exercises, setExercises] = useState([emptyExercise()])
 
@@ -122,25 +124,14 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
 
   const totalDistanceMiles = sumSegmentsDistanceMiles(segments)
   const totalOtherDistanceMiles = sumSegmentsDistanceMiles(otherSegments)
-
-  // Keep total duration in sync with the active type's segments (running or
-  // other — the only two segment-based types with a total-duration row)
-  // unless the athlete has manually overridden it (e.g. to account for
-  // rest/cooldown time).
-  useEffect(() => {
-    if (totalDurationManual) return
-    const activeSegments = type === 'other' ? otherSegments : segments
-    setTotalDuration(secondsToHms(sumSegmentsSeconds(activeSegments)))
-    setTotalDurationResetKey((k) => k + 1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, segments, otherSegments, totalDurationManual])
-
-  function recalcTotalFromSegments() {
-    setTotalDurationManual(false)
-    const activeSegments = type === 'other' ? otherSegments : segments
-    setTotalDuration(secondsToHms(sumSegmentsSeconds(activeSegments)))
-    setTotalDurationResetKey((k) => k + 1)
-  }
+  // Total duration is always derived from segments — never a field the
+  // athlete/coach types into directly — and only meaningful once every
+  // segment's every rep has a time (see allSegmentsComplete); a partial
+  // total would just be wrong, not merely approximate.
+  const segmentsComplete = allSegmentsComplete(segments)
+  const otherSegmentsComplete = allSegmentsComplete(otherSegments)
+  const totalDurationSeconds = segmentsComplete ? sumSegmentsSeconds(segments) : 0
+  const totalOtherDurationSeconds = otherSegmentsComplete ? sumSegmentsSeconds(otherSegments) : 0
 
   // If we arrived pre-targeted at an assignment (calendar day with a coach
   // assignment, or the assignments-style deep link), load it, switch to its
@@ -197,9 +188,6 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
               })),
             }))
           )
-          setTotalDuration(secondsToHms(workout.total_duration_seconds || 0))
-          setTotalDurationManual(true)
-          setTotalDurationResetKey((k) => k + 1)
         } else if (workout.type === 'swim') {
           setSwimSegments(
             (workout.swim_segments || []).map((seg) => ({
@@ -247,9 +235,6 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
               })),
             }))
           )
-          setTotalDuration(secondsToHms(workout.total_duration_seconds || 0))
-          setTotalDurationManual(true)
-          setTotalDurationResetKey((k) => k + 1)
         } else {
           const mapped = (workout.lifting_exercises || []).map((ex) => ({
             exerciseName: ex.exercise_name,
@@ -271,7 +256,6 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
       const targetSegments = assignment.assigned_running_segments || []
       if (targetSegments.length > 0) {
         setSegments(targetSegments.map((seg) => prefillSegmentFromTarget(seg, 'assigned_running_segment_reps')))
-        setTotalDurationManual(false)
       }
     } else if (assignment.type === 'swim') {
       const targetSegments = assignment.assigned_swim_segments || []
@@ -291,7 +275,6 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
       const targetSegments = assignment.assigned_other_segments || []
       if (targetSegments.length > 0) {
         setOtherSegments(targetSegments.map((seg) => prefillSegmentFromTarget(seg, 'assigned_other_segment_reps')))
-        setTotalDurationManual(false)
       }
     } else {
       const targets = assignment.assigned_lifting_targets || []
@@ -315,9 +298,6 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-
-    const totalDurationSeconds = hmsToSeconds(totalDuration)
-
     setSubmitting(true)
     try {
       if (type === 'running') {
@@ -369,7 +349,7 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
           date,
           name,
           totalDistance: totalOtherDistanceMiles > 0 ? totalOtherDistanceMiles : null,
-          totalDurationSeconds: totalDurationSeconds > 0 ? totalDurationSeconds : null,
+          totalDurationSeconds: totalOtherDurationSeconds > 0 ? totalOtherDurationSeconds : null,
           perceivedEffort: Number(perceivedEffort),
           notes,
           segments: otherSegments.filter((s) => s.distanceValue),
@@ -521,20 +501,9 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                     </div>
                     <div>
                       <span className="total-duration-label">Total duration</span>
-                      <TimeTextInput
-                        key={totalDurationResetKey}
-                        value={totalDuration}
-                        onChange={(v) => {
-                          setTotalDuration(v)
-                          setTotalDurationManual(true)
-                        }}
-                        ariaLabel="Total workout duration"
-                      />
-                      {totalDurationManual && (
-                        <button type="button" className="link-button" onClick={recalcTotalFromSegments}>
-                          Recalculate from segments
-                        </button>
-                      )}
+                      <span className="total-duration-value">
+                        {segmentsComplete ? secondsToClock(totalDurationSeconds) : '—'}
+                      </span>
                     </div>
                   </div>
                 </>
@@ -555,20 +524,9 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                     </div>
                     <div>
                       <span className="total-duration-label">Total duration</span>
-                      <TimeTextInput
-                        key={totalDurationResetKey}
-                        value={totalDuration}
-                        onChange={(v) => {
-                          setTotalDuration(v)
-                          setTotalDurationManual(true)
-                        }}
-                        ariaLabel="Total workout duration"
-                      />
-                      {totalDurationManual && (
-                        <button type="button" className="link-button" onClick={recalcTotalFromSegments}>
-                          Recalculate from segments
-                        </button>
-                      )}
+                      <span className="total-duration-value">
+                        {otherSegmentsComplete ? secondsToClock(totalOtherDurationSeconds) : '—'}
+                      </span>
                     </div>
                   </div>
                 </>

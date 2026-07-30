@@ -3,10 +3,10 @@
 //
 // Lifting only. Running/swim/bike/other used to go through this too, but
 // that was replaced by WorkoutCard's own "Prescribed" block (ActualAndPrescribed
-// + PrescribedSegmentSummary) — that block's target-vs-actual comparison is
-// now genuinely per-rep, which the running/swim/bike branches this file
-// used to have never were and would have needed a rewrite to match, for
-// code nothing rendered. See WorkoutCard.jsx's LiftingBody for the one
+// + SegmentLine) — that block's target-vs-actual comparison is now
+// genuinely per-rep, which the running/swim/bike branches this file used
+// to have never were and would have needed a rewrite to match, for code
+// nothing rendered. See WorkoutCard.jsx's LiftingBody for the one
 // remaining call site.
 export default function TargetVsActual({ assignment, workout }) {
   if (!assignment) return null

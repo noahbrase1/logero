@@ -315,8 +315,8 @@ export function loggedDistanceSummary(workout) {
   return miles > 0 ? { value: miles, unit: 'miles' } : null
 }
 
-// Exported so WorkoutCard's PrescribedSegmentSummary can pair each actual
-// rep with its corresponding target rep without duplicating this map.
+// Exported so WorkoutCard's SegmentLine can read the right per-rep field
+// for both actual and target segments without duplicating this map.
 export const LOGGED_REPS_FIELD_BY_TYPE = {
   running: 'running_segment_reps',
   swim: 'swim_segment_reps',
@@ -332,12 +332,61 @@ export const ASSIGNED_REPS_FIELD_BY_TYPE = {
   other: 'assigned_other_segment_reps',
 }
 
+// True only if every segment has at least one rep and every one of those
+// reps has an actual recorded time — a total built from partial data would
+// silently understate the real duration, which is worse than not showing a
+// total at all. False for zero segments (nothing recorded, not "vacuously
+// complete").
+function allLoggedRepsRecorded(segments, repsField) {
+  if (!segments || segments.length === 0) return false
+  return segments.every((seg) => {
+    const reps = repsField ? seg[repsField] || [] : []
+    return (
+      reps.length > 0 &&
+      reps.every((r) => hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds }) > 0)
+    )
+  })
+}
+
+// Same as allLoggedRepsRecorded, for assigned/target reps — a legacy
+// segment with no per-rep rows yet falls back to treating its single
+// segment-level target_time_* as "recorded" for the whole segment (same
+// fallback used elsewhere for a segment saved before per-rep targets
+// existed).
+function allTargetRepsRecorded(segments, repsField) {
+  if (!segments || segments.length === 0) return false
+  return segments.every((seg) => {
+    const reps = repsField ? seg[repsField] || [] : []
+    if (reps.length > 0) {
+      return reps.every(
+        (r) => hmsToSeconds({ hours: r.target_time_hours, minutes: r.target_time_minutes, seconds: r.target_time_seconds }) > 0
+      )
+    }
+    return hmsToSeconds({ hours: seg.target_time_hours, minutes: seg.target_time_minutes, seconds: seg.target_time_seconds }) > 0
+  })
+}
+
+// Comma-separated list of whichever rep times are actually present — a rep
+// with no time recorded is simply omitted rather than shown as a
+// placeholder, so a partially-filled interval doesn't read as more
+// complete than it is. Empty string when none are present (the caller
+// should treat that as "don't show a time for this at all").
+export function formatRepTimesList(repSecondsList) {
+  return repSecondsList
+    .filter((s) => s > 0)
+    .map((s) => secondsToClock(s))
+    .join(', ')
+}
+
 // Total logged time across every rep of every segment in a running/swim/
-// bike workout — running already has a precomputed total_duration_seconds
-// (the athlete's own total, which may include rest/cooldown time the
-// segments don't capture) and that's used in preference to re-summing the
-// segments when present. 0 for lifting/note, or a distance-type workout
-// logged with no rep times at all.
+// bike/other workout — only returned when every segment's every rep
+// actually has a time recorded (see allLoggedRepsRecorded); a partial log
+// shows no total time at all rather than an understated one. Running/other
+// prefer the athlete's own precomputed total_duration_seconds when present
+// (it may include rest/cooldown time the segments don't capture) — the
+// logging form only ever stores that column when every segment is complete
+// in the first place, so this stays consistent with the same rule for
+// newly-logged workouts. 0 for lifting/note.
 export function sumLoggedTimeSeconds(workout) {
   if (!workout) return 0
   if ((workout.type === 'running' || workout.type === 'other') && workout.total_duration_seconds) {
@@ -346,7 +395,9 @@ export function sumLoggedTimeSeconds(workout) {
   const field = LOGGED_SEGMENTS_FIELD_BY_TYPE[workout.type]
   const repsField = LOGGED_REPS_FIELD_BY_TYPE[workout.type]
   if (!field || !repsField) return 0
-  return (workout[field] || []).reduce((total, seg) => {
+  const segments = workout[field] || []
+  if (!allLoggedRepsRecorded(segments, repsField)) return 0
+  return segments.reduce((total, seg) => {
     const repSeconds = (seg[repsField] || []).reduce(
       (t, r) => t + hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds }),
       0
@@ -355,18 +406,17 @@ export function sumLoggedTimeSeconds(workout) {
   }, 0)
 }
 
-// Total *target* time across a running/swim/bike assignment's segments —
-// each rep now has its own target time (see assigned_running_segment_reps
-// etc.), so this sums those directly, the same way sumLoggedTimeSeconds
-// sums actual reps. Falls back to the old "one shared segment-level target
-// x rep count" math only for "other" (not part of the per-rep-target
-// rework) or a legacy segment saved before per-rep rows existed. 0 for
-// lifting/note.
+// Total *target* time across a running/swim/bike/other assignment's
+// segments — only returned when every segment's every rep has its own
+// target time recorded (see allTargetRepsRecorded), same all-or-nothing
+// rule as the logged side. 0 for lifting/note.
 export function sumAssignedTimeSeconds(assignment) {
   const field = ASSIGNED_SEGMENTS_FIELD_BY_TYPE[assignment?.type]
   const repsField = ASSIGNED_REPS_FIELD_BY_TYPE[assignment?.type]
   if (!field) return 0
-  return (assignment[field] || []).reduce((total, seg) => {
+  const segments = assignment[field] || []
+  if (!allTargetRepsRecorded(segments, repsField)) return 0
+  return segments.reduce((total, seg) => {
     const repRows = repsField ? seg[repsField] || [] : []
     if (repRows.length > 0) {
       const repSeconds = repRows.reduce(
@@ -375,61 +425,36 @@ export function sumAssignedTimeSeconds(assignment) {
       )
       return total + repSeconds
     }
-    const perRep = hmsToSeconds({
-      hours: seg.target_time_hours,
-      minutes: seg.target_time_minutes,
-      seconds: seg.target_time_seconds,
-    })
-    return total + perRep * (seg.reps || 1)
+    return total + hmsToSeconds({ hours: seg.target_time_hours, minutes: seg.target_time_minutes, seconds: seg.target_time_seconds })
   }, 0)
 }
 
 // The "what the athlete actually did" headline for a logged running/swim/
-// bike workout — an ordered list of strings (distance, time, average pace)
-// meant to be joined with " · " by the caller. Average pace is only
-// included for running: swim/bike don't have a single meaningful overall
-// pace figure in this app (see WorkoutCard's existing per-segment summary
-// comments), so their headline is just distance + time. A blended total
-// across more than one distinct segment (e.g. a warm-up mile plus a faster
-// main set) — whether that's time or pace — is a misleading single number,
-// so both are only shown when there's at most one segment; with several
-// segments the headline is distance-only, and each segment's own time(s)
-// and average pace are what the per-segment breakdown (SegmentSummary)
-// shows instead.
+// bike/other workout — an ordered list of strings (distance, total time)
+// meant to be joined with " · " by the caller. No pace — this app dropped
+// showing pace anywhere in the log display (see SegmentEditor's own live
+// preview while entering a time, which is unaffected). Total time only
+// appears when sumLoggedTimeSeconds returns non-zero, i.e. every segment's
+// every rep actually has a time recorded — never a blended/partial total.
 export function loggedWorkoutHeadline(workout) {
   const distance = loggedDistanceSummary(workout)
   const seconds = sumLoggedTimeSeconds(workout)
-  const segmentsField = LOGGED_SEGMENTS_FIELD_BY_TYPE[workout?.type]
-  const segments = segmentsField ? workout?.[segmentsField] || [] : []
-  const singleSegment = segments.length <= 1
   const parts = []
   if (distance) parts.push(`${formatDistanceValue(distance.value, distance.unit)}${unitAbbrev(distance.unit)}`)
-  if (seconds > 0 && singleSegment) parts.push(secondsToClock(seconds))
-  if (workout?.type === 'running' && distance && seconds > 0 && singleSegment) {
-    const pace = calculatePace(sumLoggedDistanceMiles(workout), seconds)
-    if (pace) parts.push(`${pace} avg`)
-  }
+  if (seconds > 0) parts.push(secondsToClock(seconds))
   return parts
 }
 
-// The "what the coach prescribed" headline for a running/swim/bike
-// assignment — same shape as loggedWorkoutHeadline, computed from target
-// segments instead of logged ones, including the same single-vs-multiple-
-// segment rule for whether an overall total time/average pace is
-// meaningful.
+// The "what the coach prescribed" headline for a running/swim/bike/other
+// assignment — same shape and same all-or-nothing rule as
+// loggedWorkoutHeadline, computed from target segments instead of logged
+// ones.
 export function assignedWorkoutHeadline(assignment) {
   const distance = assignedDistanceSummary(assignment)
   const seconds = sumAssignedTimeSeconds(assignment)
-  const segmentsField = ASSIGNED_SEGMENTS_FIELD_BY_TYPE[assignment?.type]
-  const segments = segmentsField ? assignment?.[segmentsField] || [] : []
-  const singleSegment = segments.length <= 1
   const parts = []
   if (distance) parts.push(`${formatDistanceValue(distance.value, distance.unit)}${unitAbbrev(distance.unit)}`)
-  if (seconds > 0 && singleSegment) parts.push(secondsToClock(seconds))
-  if (assignment?.type === 'running' && distance && seconds > 0 && singleSegment) {
-    const pace = calculatePace(sumAssignedDistanceMiles(assignment), seconds)
-    if (pace) parts.push(`${pace} avg`)
-  }
+  if (seconds > 0) parts.push(secondsToClock(seconds))
   return parts
 }
 
@@ -462,17 +487,15 @@ export function summarizeAssignment(assignment) {
           const repSecondsList = repRows.map((r) =>
             hmsToSeconds({ hours: r.target_time_hours, minutes: r.target_time_minutes, seconds: r.target_time_seconds })
           )
-          if (repSecondsList.some((s) => s > 0)) {
-            // The common case (every rep targeted the same time) stays a
-            // single compact "@ time"; only a genuinely varied set of
-            // per-rep targets (e.g. 2:32, 2:30, 2:28, 2:26) spells all of
-            // them out, since that's the whole point of setting them
-            // individually.
-            const allSame = repSecondsList.every((s) => s === repSecondsList[0])
-            time = allSame
-              ? ` @ ${secondsToClock(repSecondsList[0])}`
-              : ` @ ${repSecondsList.map((s) => (s > 0 ? secondsToClock(s) : '—')).join(', ')}`
-          }
+          // The common case (every rep targeted the same time) stays a
+          // single compact "@ time"; only a genuinely varied set of
+          // per-rep targets (e.g. 2:32, 2:30, 2:28, 2:26) spells all of
+          // them out, since that's the whole point of setting them
+          // individually. A rep with no target time recorded is simply
+          // left out of the list rather than shown as a placeholder.
+          const allSame = repSecondsList.every((s) => s === repSecondsList[0])
+          const timesList = allSame && repSecondsList[0] > 0 ? secondsToClock(repSecondsList[0]) : formatRepTimesList(repSecondsList)
+          time = timesList ? ` @ ${timesList}` : ''
         } else {
           const targetSeconds = hmsToSeconds({
             hours: seg.target_time_hours,

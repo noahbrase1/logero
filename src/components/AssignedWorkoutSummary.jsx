@@ -1,12 +1,13 @@
 import { ASSIGNED_SEGMENTS_FIELD_BY_TYPE, assignedWorkoutHeadline } from '../utils/format'
-import { PrescribedSegmentSummary, liftingTargetSummary } from './WorkoutCard'
+import { SegmentLine, liftingTargetSummary } from './WorkoutCard'
 
 // The not-yet-logged twin of WorkoutCard's own "Prescribed" block — used by
 // the athlete calendar's day panel when a day has an assignment but nothing
-// has been logged against it yet. Follows the exact same collapse rules
-// (compact headline, "View splits"/"View sets" only when there's genuine
-// multi-segment/multi-exercise detail to reveal) so a coach or athlete sees
-// the same shape whether or not something's been logged for the day.
+// has been logged against it yet. Same minimal-thumbnail-plus-dropdown
+// shape as a logged WorkoutCard: distance (+ total time, only when every
+// target rep actually has one) collapsed, a "View splits"/"View sets"
+// toggle revealing each segment's own prescribed line, shown whenever
+// there's any target data at all.
 export default function AssignedWorkoutSummary({ assignment }) {
   if (!assignment) return null
 
@@ -50,21 +51,20 @@ export default function AssignedWorkoutSummary({ assignment }) {
   if (targetSegments.length === 0) return null
 
   const headline = assignedWorkoutHeadline(assignment)
-  const showSplitsToggle = targetSegments.length > 1 || targetSegments.some((seg) => (seg.reps || 1) > 1)
 
   return (
     <>
       <div className="workout-headline">{headline.length > 0 ? headline.join(' · ') : '—'}</div>
-      {showSplitsToggle && (
-        <details className="workout-details">
-          <summary>View splits</summary>
-          <div className="segment-list">
-            {targetSegments.map((seg) => (
-              <PrescribedSegmentSummary key={seg.id} seg={seg} type={assignment.type} />
-            ))}
-          </div>
-        </details>
-      )}
+      <details className="workout-details">
+        <summary>View splits</summary>
+        <div className="segment-list">
+          {targetSegments.map((seg) => (
+            <div className="segment-summary" key={seg.id}>
+              <SegmentLine seg={seg} type={assignment.type} kind="target" />
+            </div>
+          ))}
+        </div>
+      </details>
     </>
   )
 }

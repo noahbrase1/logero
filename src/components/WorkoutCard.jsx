@@ -4,16 +4,13 @@ import {
   ASSIGNED_REPS_FIELD_BY_TYPE,
   ASSIGNED_SEGMENTS_FIELD_BY_TYPE,
   LOGGED_REPS_FIELD_BY_TYPE,
-  assignedDistanceSummary,
   assignedWorkoutHeadline,
   formatDate,
   formatDistanceValue,
-  formatTargetPace,
+  formatRepTimesList,
   hmsToSeconds,
   loggedWorkoutHeadline,
-  secondsToClock,
   summarizeBikeReps,
-  summarizeReps,
   unitAbbrev,
   workoutTypeLabel,
 } from '../utils/format'
@@ -75,15 +72,14 @@ export default function WorkoutCard({ workout, showAthleteName = false, hideEdit
   )
 }
 
-// Shared body for running/swim/bike/other: a bold top-line headline of what
-// the athlete actually did (distance, time, average pace where meaningful),
-// a compact "Prescribed: <distance>" line when this log fulfills an
-// assignment, and — only when there's genuine segment detail worth
-// revealing (more than one segment, or a segment with more than one rep) —
-// a "View splits" toggle exposing the full segment breakdown plus the
-// coach's prescribed workout, same shape as before this toggle existed.
-// A single-segment, single-rep workout has nothing left to reveal once its
-// total is already the headline, so no toggle is shown for it at all.
+// Shared body for running/swim/bike/other: a minimal thumbnail (distance,
+// total time only when every segment's every rep actually has a time
+// recorded — see sumLoggedTimeSeconds — plus effort) and a "View splits"
+// dropdown revealing everything else: the overall Workout/Prescribed totals,
+// then each segment's own actual line and (directly below it) its
+// prescribed line, paired by position. Shown whenever there's any segment
+// data at all, actual or target, since the thumbnail no longer shows any of
+// it.
 function ActualAndPrescribed({ workout, segments }) {
   const loggedSegments = segments || []
   const headline = loggedWorkoutHeadline(workout)
@@ -92,25 +88,18 @@ function ActualAndPrescribed({ workout, segments }) {
   const targetField = ASSIGNED_SEGMENTS_FIELD_BY_TYPE[workout.type]
   const targetSegments = assignment ? assignment[targetField] || [] : []
   const prescribedHeadline = assignment ? assignedWorkoutHeadline(assignment) : []
-  const prescribedDistance = assignment ? assignedDistanceSummary(assignment) : null
 
-  const hasSplitDetail = (segs) => segs.length > 1 || segs.some((seg) => (seg.reps || 1) > 1)
-  const showSplitsToggle = hasSplitDetail(loggedSegments) || hasSplitDetail(targetSegments)
+  const showSplitsToggle = loggedSegments.length > 0 || targetSegments.length > 0
+  const rowCount = Math.max(loggedSegments.length, targetSegments.length)
 
   return (
     <>
       <div className="workout-headline">
         {headline.length > 0 ? headline.join(' · ') : 'No distance or time recorded'}
       </div>
-      {(workout.perceived_effort || prescribedDistance) && (
+      {workout.perceived_effort && (
         <div className="workout-collapsed-meta">
-          {workout.perceived_effort && <span className="workout-headline-meta">Effort {workout.perceived_effort}/10</span>}
-          {prescribedDistance && (
-            <span className="workout-headline-meta">
-              Prescribed: {formatDistanceValue(prescribedDistance.value, prescribedDistance.unit)}
-              {unitAbbrev(prescribedDistance.unit)}
-            </span>
-          )}
+          <span className="workout-headline-meta">Effort {workout.perceived_effort}/10</span>
         </div>
       )}
 
@@ -118,37 +107,22 @@ function ActualAndPrescribed({ workout, segments }) {
         <details className="workout-details">
           <summary>View splits</summary>
 
-          {loggedSegments.length > 0 && (
-            <div className="segment-list">
-              {loggedSegments.map((seg) => (
-                <SegmentSummary key={seg.id} segment={seg} type={workout.type} />
-              ))}
+          <div className="segment-list">
+            <div className="segment-summary">
+              <div className="segment-summary-title">
+                Workout: {headline.length > 0 ? headline.join(' · ') : '—'}
+              </div>
+              {assignment && (
+                <div className="segment-summary-detail">
+                  Prescribed: {prescribedHeadline.length > 0 ? prescribedHeadline.join(' · ') : '—'}
+                </div>
+              )}
             </div>
-          )}
 
-          {targetSegments.length > 0 && (
-            <div className="target-actual">
-              <div className="target-actual-heading">Prescribed</div>
-              <div className="workout-headline workout-headline-prescribed">
-                {prescribedHeadline.length > 0 ? prescribedHeadline.join(' · ') : '—'}
-              </div>
-              <div className="segment-list">
-                {targetSegments.map((seg, i) => (
-                  <PrescribedSegmentSummary
-                    key={seg.id}
-                    seg={seg}
-                    type={workout.type}
-                    // Matched by position, same as the grid/list assignment
-                    // UI's own segment ordering — a workout's logged
-                    // segments are meant to correspond 1:1 to the
-                    // assignment's target segments in the order they were
-                    // both entered.
-                    actualSegment={loggedSegments[i]}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+            {Array.from({ length: rowCount }, (_, i) => (
+              <SegmentPair key={i} type={workout.type} actualSeg={loggedSegments[i]} targetSeg={targetSegments[i]} />
+            ))}
+          </div>
         </details>
       )}
     </>
@@ -231,114 +205,70 @@ function Stat({ label, value }) {
   )
 }
 
-// The one shared "actual segment" summary for running/swim/bike/other —
-// these four had drifted into separate near-identical components that
-// differed only in two respects: only running shows a pace (swim/bike/other
-// don't have a single meaningful pace-like figure — see BikeSegmentSummary's
-// old comment on why bike shows watts/cadence instead, and the analogous
-// reasoning for swim/other), and only bike has optional per-rep watts/
-// cadence extras. Consolidated into one function parameterized by `type`
-// rather than four copies that could each drift independently.
-function SegmentSummary({ segment, type }) {
-  const reps = segment.reps || 1
-  const repsField = LOGGED_REPS_FIELD_BY_TYPE[type]
-  const title = `${segment.label ? `${segment.label}: ` : ''}${reps > 1 ? `${reps} × ` : ''}${formatDistanceValue(segment.distance_value, segment.distance_unit)} ${unitAbbrev(segment.distance_unit)}`
-
-  if (type === 'bike') {
-    const { timesText, avgWatts, avgCadence } = summarizeBikeReps(segment.distance_meters, segment[repsField])
-    const extras = []
-    if (avgWatts != null) extras.push(`${avgWatts}w avg`)
-    if (avgCadence != null) extras.push(`${avgCadence}rpm avg`)
-    return (
-      <div className="segment-summary">
-        <div className="segment-summary-title">{title}</div>
-        <div className="segment-summary-detail">
-          {timesText}
-          {extras.length > 0 && `, ${extras.join(', ')}`}
-        </div>
-      </div>
-    )
-  }
-
-  const { timesText, avgPace } = summarizeReps(segment.distance_meters, segment[repsField])
-
+// One segment "slot": the athlete's actual line (bold, if this position has
+// a logged segment) directly above its prescribed line (muted, if this
+// position has a target segment) — paired by position, the same way a
+// workout's logged segments are meant to correspond 1:1 to the assignment's
+// target segments in the order both were entered. Either line can be
+// missing on its own (an unlogged assignment has no actual yet; an
+// unassigned log has no prescribed at all).
+function SegmentPair({ type, actualSeg, targetSeg }) {
   return (
     <div className="segment-summary">
-      <div className="segment-summary-title">{title}</div>
-      <div className="segment-summary-detail">
-        {timesText}
-        {type === 'running' && avgPace && <span className="segment-summary-pace"> — avg pace {avgPace}</span>}
-      </div>
+      {actualSeg && <SegmentLine seg={actualSeg} type={type} kind="actual" />}
+      {/* The label is only worth repeating on the prescribed line when
+          there's no actual line above it already showing it (e.g. this
+          position hasn't been logged yet) — otherwise it's just noise. */}
+      {targetSeg && <SegmentLine seg={targetSeg} type={type} kind="target" showLabel={!actualSeg} />}
     </div>
   )
 }
 
-// The coach's target for one segment — same title shape as the actual
-// SegmentSummary components above (label + reps× + distance+unit), so
-// actual and prescribed splits read as visually parallel lists. Each rep
-// gets its own target time row (running/swim/bike; see
-// assigned_running_segment_reps etc.) rather than one shared value for the
-// whole segment. When `actualSegment` is given (the logged segment at the
-// same position, if this log fulfills the assignment), each target rep is
-// paired with its own corresponding actual rep — rep 1 target vs rep 1
-// actual, rep 2 vs rep 2, and so on — instead of comparing against the
-// segment as a whole.
-export function PrescribedSegmentSummary({ seg, type, actualSegment }) {
+// The one shared segment-line formatter for both actual and prescribed,
+// running/swim/bike/other — "{label}: {reps}×{distance}{unit} @ {times}",
+// the "@ times" part entirely omitted when no time is recorded for any rep
+// (never a placeholder), each rep's own time skipped if only that one rep
+// is missing (see formatRepTimesList). These four types + two kinds used to
+// be eight near-identical, independently-drifting implementations
+// (SegmentSummary/SwimSegmentSummary/BikeSegmentSummary/OtherSegmentSummary
+// x PrescribedSegmentSummary's per-type branches) — now one function.
+export function SegmentLine({ seg, type, kind, showLabel = true }) {
+  const isTarget = kind === 'target'
   const reps = seg.reps || 1
-  const title = `${seg.label ? `${seg.label}: ` : ''}${reps > 1 ? `${reps} × ` : ''}${formatDistanceValue(seg.distance_value, seg.distance_unit)} ${unitAbbrev(seg.distance_unit)}`
+  const label = showLabel && seg.label ? `${seg.label}: ` : ''
+  const title = `${label}${reps > 1 ? `${reps} × ` : ''}${formatDistanceValue(seg.distance_value, seg.distance_unit)} ${unitAbbrev(seg.distance_unit)}`
 
-  const targetRepsField = ASSIGNED_REPS_FIELD_BY_TYPE[type]
-  const targetRepRows = targetRepsField ? seg[targetRepsField] || [] : []
-  // A segment saved before per-rep target rows existed has none yet — fall
-  // back to its old segment-level target_time_* as a single "rep 1" row so
-  // it still renders a target instead of nothing.
-  const effectiveTargetReps =
-    targetRepRows.length > 0
-      ? targetRepRows
-      : [{ target_time_hours: seg.target_time_hours, target_time_minutes: seg.target_time_minutes, target_time_seconds: seg.target_time_seconds }]
+  const repsField = isTarget ? ASSIGNED_REPS_FIELD_BY_TYPE[type] : LOGGED_REPS_FIELD_BY_TYPE[type]
+  const repRows = repsField ? seg[repsField] || [] : []
+  const repSecondsList = repRows.map((r) =>
+    isTarget
+      ? hmsToSeconds({ hours: r.target_time_hours, minutes: r.target_time_minutes, seconds: r.target_time_seconds })
+      : hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds })
+  )
+  // A target segment saved before per-rep rows existed has none yet — fall
+  // back to its old segment-level target_time_* as a single rep's worth.
+  const effectiveSecondsList =
+    repRows.length > 0
+      ? repSecondsList
+      : isTarget
+        ? [hmsToSeconds({ hours: seg.target_time_hours, minutes: seg.target_time_minutes, seconds: seg.target_time_seconds })]
+        : []
 
-  const actualRepsField = LOGGED_REPS_FIELD_BY_TYPE[type]
-  const actualRepRows = actualSegment && actualRepsField ? actualSegment[actualRepsField] || [] : null
+  const timesList = formatRepTimesList(effectiveSecondsList)
 
-  function targetDetailFor(targetRow) {
-    const targetSeconds = hmsToSeconds({
-      hours: targetRow.target_time_hours,
-      minutes: targetRow.target_time_minutes,
-      seconds: targetRow.target_time_seconds,
-    })
-    if (type === 'running') return formatTargetPace(seg.distance_value, seg.distance_unit, reps, targetSeconds)
-    return targetSeconds > 0 ? secondsToClock(targetSeconds) : null
+  // Bike-only, actuals-only: optional per-rep watts/cadence, appended after
+  // the times (or shown on their own if no time was recorded either).
+  let extra = ''
+  if (!isTarget && type === 'bike') {
+    const { avgWatts, avgCadence } = summarizeBikeReps(seg.distance_meters, repRows)
+    const parts = []
+    if (avgWatts != null) parts.push(`${avgWatts}w avg`)
+    if (avgCadence != null) parts.push(`${avgCadence}rpm avg`)
+    extra = parts.join(', ')
   }
 
-  return (
-    <div className="segment-summary">
-      <div className="segment-summary-title">{title}</div>
-      {effectiveTargetReps.map((targetRow, i) => {
-        const targetDetail = targetDetailFor(targetRow) || '—'
-        const repLabel = reps > 1 ? `Rep ${i + 1}: ` : ''
+  const suffix = [timesList, extra].filter(Boolean).join(', ')
+  const line = `${isTarget ? 'Prescribed: ' : ''}${title}${suffix ? ` @ ${suffix}` : ''}`
 
-        if (!actualRepRows) {
-          return (
-            <div className="segment-summary-detail" key={i}>
-              {repLabel}
-              {targetDetail}
-            </div>
-          )
-        }
-
-        const actualRow = actualRepRows[i]
-        const actualSeconds = actualRow
-          ? hmsToSeconds({ hours: actualRow.time_hours, minutes: actualRow.time_minutes, seconds: actualRow.time_seconds })
-          : 0
-        const actualDetail = actualSeconds > 0 ? secondsToClock(actualSeconds) : 'not yet logged'
-
-        return (
-          <div className="segment-summary-detail" key={i}>
-            {repLabel}
-            Target {targetDetail} · Actual {actualDetail}
-          </div>
-        )
-      })}
-    </div>
-  )
+  return <div className={isTarget ? 'segment-summary-detail' : 'segment-summary-title'}>{line}</div>
 }
