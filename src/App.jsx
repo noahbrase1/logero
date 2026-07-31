@@ -13,7 +13,6 @@ import InstallPage from './pages/InstallPage'
 import PendingPage from './pages/PendingPage'
 import RemovedPage from './pages/RemovedPage'
 import LogWorkoutPage from './pages/LogWorkoutPage'
-import TeamFeedPage from './pages/TeamFeedPage'
 import RosterPage from './pages/RosterPage'
 import FormerAthletesPage from './pages/FormerAthletesPage'
 import AthleteDetailPage from './pages/AthleteDetailPage'
@@ -112,7 +111,7 @@ export default function App() {
       <main>
         {role === 'coach' ? (
           <Routes>
-            <Route path="/" element={<TeamFeedPage />} />
+            <Route path="/" element={<CoachAssignmentsPage />} />
             <Route path="/roster" element={<RosterPage />} />
             <Route path="/former-athletes" element={<FormerAthletesPage />} />
             <Route path="/athletes/:id" element={<AthleteDetailPage />} />
@@ -134,7 +133,7 @@ export default function App() {
           // section is one such control — it only fetches/renders for a
           // coach, so an admin's Roster page never shows it at all.
           <Routes>
-            <Route path="/" element={<TeamFeedPage />} />
+            <Route path="/" element={<CoachAssignmentsPage />} />
             <Route path="/roster" element={<RosterPage />} />
             <Route path="/former-athletes" element={<FormerAthletesPage />} />
             <Route path="/athletes/:id" element={<AthleteDetailPage />} />

@@ -1,6 +1,5 @@
 import { NavLink } from 'react-router-dom'
 import {
-  IconActivity,
   IconCalendarEvent,
   IconClipboardList,
   IconMessageCircle,
@@ -23,54 +22,27 @@ export default function NavBar() {
   const isCoach = profile?.role === 'coach'
   const isAdmin = profile?.role === 'admin'
 
-  const links = isCoach ? (
+  // Coach and admin share one order/label set, uniform with BottomNav's
+  // mobile tabs (Workouts/Calendar/Messages/Athletes primary, Team Theme
+  // under More) — "Workouts" is also the coach/admin home page ("/"),
+  // folding in what used to be a separate "Team Logs" nav destination.
+  const links = isCoach || isAdmin ? (
     <>
       <NavLink to="/" end>
-        <IconActivity size={18} stroke={1.75} />
-        Team Logs
-      </NavLink>
-      <NavLink to="/roster">
-        <IconUsers size={18} stroke={1.75} />
-        Roster
-      </NavLink>
-      <NavLink to="/messages">
-        <IconMessageCircle size={18} stroke={1.75} />
-        Messages
+        <IconClipboardList size={18} stroke={1.75} />
+        Workouts
       </NavLink>
       <NavLink to="/events">
         <IconCalendarEvent size={18} stroke={1.75} />
         Calendar
       </NavLink>
-      <NavLink to="/assignments">
-        <IconClipboardList size={18} stroke={1.75} />
-        Assignments
-      </NavLink>
-      <NavLink to="/settings">
-        <IconPalette size={18} stroke={1.75} />
-        Team Theme
-      </NavLink>
-    </>
-  ) : isAdmin ? (
-    <>
-      <NavLink to="/" end>
-        <IconActivity size={18} stroke={1.75} />
-        Team Logs
-      </NavLink>
-      <NavLink to="/roster">
-        <IconUsers size={18} stroke={1.75} />
-        Roster
-      </NavLink>
       <NavLink to="/messages">
         <IconMessageCircle size={18} stroke={1.75} />
         Messages
       </NavLink>
-      <NavLink to="/events">
-        <IconCalendarEvent size={18} stroke={1.75} />
-        Calendar
-      </NavLink>
-      <NavLink to="/assignments">
-        <IconClipboardList size={18} stroke={1.75} />
-        Assignments
+      <NavLink to="/roster">
+        <IconUsers size={18} stroke={1.75} />
+        Athletes
       </NavLink>
       <NavLink to="/settings">
         <IconPalette size={18} stroke={1.75} />

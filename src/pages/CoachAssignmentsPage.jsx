@@ -2,19 +2,31 @@ import { useEffect, useMemo, useState } from 'react'
 import { IconClipboardList } from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
 import { createAssignment, fetchAssignmentsForCoach } from '../lib/assignments'
-import { fetchApprovedAthletes } from '../lib/workouts'
+import { fetchEvents } from '../lib/events'
+import { fetchApprovedAthletes, fetchRecentTeamFeed, fetchTeamWorkoutsByDate, fetchWorkouts } from '../lib/workouts'
 import { addDays, formatWeekRangeLabel, parseDateStr, startOfWeek, toDateStr } from '../utils/week'
+import { formatDateHeading } from '../utils/format'
+import { onAppResume } from '../utils/appResume'
+import { withTimeout } from '../utils/withTimeout'
 import AssignmentDayGroup from '../components/AssignmentDayGroup'
 import AssignmentForm from '../components/AssignmentForm'
 import AssignmentGrid from '../components/AssignmentGrid'
 import ExportDayModal from '../components/ExportDayModal'
+import Fab from '../components/Fab'
+import MetricCardRow from '../components/MetricCardRow'
+import QuickNoteForm from '../components/QuickNoteForm'
+import { SkeletonList } from '../components/Skeleton'
 import SplitRecorder from '../components/SplitRecorder'
+import WeeklyMileageSection from '../components/WeeklyMileageSection'
+import WorkoutListItem from '../components/WorkoutListItem'
 import { useToast } from '../context/ToastContext'
 
 export default function CoachAssignmentsPage() {
   const { user, profile } = useAuth()
   const canCreate = profile?.role === 'coach'
   const { showToast } = useToast()
+  const todayStr = useMemo(() => toDateStr(new Date()), [])
+
   const [athletes, setAthletes] = useState([])
   const [assignments, setAssignments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -38,6 +50,28 @@ export default function CoachAssignmentsPage() {
   // otherwise render every day-card at once now that the list is grouped).
   const [listWeekStart, setListWeekStart] = useState(() => startOfWeek(new Date()))
 
+  // --- Team Logs, merged into this page's List tab (previously its own
+  // standalone page/nav destination) — browsing actually-logged workouts,
+  // by date or by athlete, plus quick notes and week-at-a-glance metrics.
+  // Kept as its own self-contained block of state below rather than
+  // interleaved with the assignment state above, since the two features
+  // are deliberately just stacked together on one tab, not merged row by
+  // row (an athlete's assigned workout and their logged workout for the
+  // same day are still shown in two separate sections here).
+  const [recentWorkouts, setRecentWorkouts] = useState([])
+  const [events, setEvents] = useState([])
+  const [logsLoading, setLogsLoading] = useState(true)
+  const [logsError, setLogsError] = useState('')
+  const [noteFormOpen, setNoteFormOpen] = useState(false)
+
+  const [filterMode, setFilterMode] = useState('date') // 'date' | 'athlete'
+  const [selectedDate, setSelectedDate] = useState(todayStr)
+  const [selectedAthleteId, setSelectedAthleteId] = useState('')
+
+  const [feedWorkouts, setFeedWorkouts] = useState([])
+  const [feedLoading, setFeedLoading] = useState(true)
+  const [feedError, setFeedError] = useState('')
+
   function loadAthletes() {
     fetchApprovedAthletes()
       .then(setAthletes)
@@ -57,6 +91,102 @@ export default function CoachAssignmentsPage() {
   useEffect(loadAthletes, [])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(loadWeekAssignments, [listWeekStart])
+
+  // Top-60 recent feed — only powers the metrics row; it's never what's
+  // rendered as the main logs list itself. Wrapped in withTimeout so a dead
+  // connection (most commonly: this tab was backgrounded/suspended for a
+  // while) shows a retryable error instead of an indefinite spinner.
+  function loadLogs() {
+    setLogsLoading(true)
+    setLogsError('')
+    withTimeout(Promise.all([fetchRecentTeamFeed(60), fetchEvents()]), 9000)
+      .then(([workoutData, eventData]) => {
+        setRecentWorkouts(workoutData)
+        setEvents(eventData)
+      })
+      .catch((err) => setLogsError(err.message))
+      .finally(() => setLogsLoading(false))
+  }
+
+  useEffect(() => {
+    loadLogs()
+    return onAppResume(loadLogs)
+  }, [])
+
+  function refreshFeed() {
+    setFeedLoading(true)
+    setFeedError('')
+    const request =
+      filterMode === 'athlete' && selectedAthleteId
+        ? fetchWorkouts({ userId: selectedAthleteId })
+        : fetchTeamWorkoutsByDate(selectedDate)
+    withTimeout(request, 9000)
+      .then(setFeedWorkouts)
+      .catch((err) => setFeedError(err.message))
+      .finally(() => setFeedLoading(false))
+  }
+
+  useEffect(() => {
+    refreshFeed()
+    return onAppResume(refreshFeed)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterMode, selectedDate, selectedAthleteId])
+
+  const metrics = useMemo(() => {
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    const weekAgoStr = weekAgo.toISOString().slice(0, 10)
+    const recent = recentWorkouts.filter((w) => w.date >= weekAgoStr)
+    const activeAthletes = new Set(recent.map((w) => w.user_id))
+
+    const nextEvent = events.find((e) => e.date >= todayStr)
+    const daysToEvent = nextEvent
+      ? Math.round((new Date(nextEvent.date) - new Date(todayStr)) / (1000 * 60 * 60 * 24))
+      : null
+
+    return [
+      { key: 'week', label: 'Logged this week', value: recent.length },
+      { key: 'athletes', label: 'Athletes active this week', value: activeAthletes.size },
+      { key: 'event', label: 'Days to next event', value: daysToEvent === null ? '—' : daysToEvent === 0 ? 'Today' : daysToEvent },
+    ]
+  }, [recentWorkouts, events, todayStr])
+
+  function handleFeedDateChange(e) {
+    setFilterMode('date')
+    setSelectedDate(e.target.value)
+  }
+
+  function jumpFeedToToday() {
+    setFilterMode('date')
+    setSelectedDate(todayStr)
+  }
+
+  function handleFeedAthleteChange(e) {
+    const id = e.target.value
+    setSelectedAthleteId(id)
+    setFilterMode(id ? 'athlete' : 'date')
+  }
+
+  function handleNotePosted() {
+    setNoteFormOpen(false)
+    loadLogs()
+    refreshFeed()
+    showToast('Note posted!')
+  }
+
+  const selectedFeedAthleteName = athletes.find((a) => a.id === selectedAthleteId)?.name || 'this athlete'
+  const feedHeading =
+    filterMode === 'athlete'
+      ? `Logs from ${selectedFeedAthleteName}`
+      : selectedDate === todayStr
+        ? "Today's workouts"
+        : formatDateHeading(selectedDate)
+  const feedEmptyMessage =
+    filterMode === 'athlete'
+      ? `No workouts logged by ${selectedFeedAthleteName} yet.`
+      : selectedDate === todayStr
+        ? 'No workouts logged yet today.'
+        : 'No workouts logged on this date.'
 
   const assignmentsByDate = useMemo(() => {
     const map = new Map()
@@ -148,10 +278,21 @@ export default function CoachAssignmentsPage() {
   return (
     <div className="page">
       <div className="page-header-row">
-        <h1>
-          <IconClipboardList className="page-title-icon" size={26} aria-hidden="true" />
-          Assigned workouts
-        </h1>
+        <div>
+          <h1>
+            <IconClipboardList className="page-title-icon" size={26} aria-hidden="true" />
+            Workouts
+          </h1>
+          <p className="page-subtitle">Assign, record, and browse everything your team logs.</p>
+        </div>
+        {canCreate && view === 'list' && !noteFormOpen && (
+          <>
+            <button type="button" className="page-header-inline-action" onClick={() => setNoteFormOpen(true)}>
+              + Quick note
+            </button>
+            <Fab label="Quick note" onClick={() => setNoteFormOpen(true)} />
+          </>
+        )}
       </div>
 
       {canCreate && view !== 'splits' && (
@@ -174,7 +315,7 @@ export default function CoachAssignmentsPage() {
           </button>
         )}
         <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
-          List
+          Logs
         </button>
         {canCreate && (
           <button type="button" className={view === 'splits' ? 'active' : ''} onClick={() => setView('splits')}>
@@ -271,6 +412,79 @@ export default function CoachAssignmentsPage() {
                 <AssignmentDayGroup key={d} dateStr={d} assignments={assignmentsByDate.get(d)} />
               ))}
           </div>
+
+          <h2 className="events-section-heading">Team logs</h2>
+
+          {!logsLoading && !logsError && recentWorkouts.length > 0 && <MetricCardRow metrics={metrics} />}
+
+          {canCreate && noteFormOpen && (
+            <div className="quick-note-form-wrap">
+              <QuickNoteForm onPosted={handleNotePosted} />
+              <button type="button" className="link-button" onClick={() => setNoteFormOpen(false)}>
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {logsLoading && <SkeletonList count={4} />}
+          {logsError && (
+            <p className="form-error">
+              {logsError}{' '}
+              <button type="button" className="link-button" onClick={loadLogs}>
+                Retry
+              </button>
+            </p>
+          )}
+
+          {!logsLoading && !logsError && (
+            <>
+              <div className="filter-bar">
+                <label>
+                  Select by date
+                  <span className="feed-date-picker">
+                    <input type="date" value={selectedDate} onChange={handleFeedDateChange} />
+                    {selectedDate !== todayStr && (
+                      <button type="button" className="link-button" onClick={jumpFeedToToday}>
+                        Today
+                      </button>
+                    )}
+                  </span>
+                </label>
+                <label>
+                  Select by athlete
+                  <select value={selectedAthleteId} onChange={handleFeedAthleteChange}>
+                    <option value="">All athletes (by date)</option>
+                    {athletes.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name || 'Unnamed athlete'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {filterMode === 'athlete' && selectedAthleteId && <WeeklyMileageSection athleteId={selectedAthleteId} />}
+
+              <h3 className="feed-view-heading">{feedHeading}</h3>
+
+              {feedLoading && <SkeletonList count={4} />}
+              {feedError && (
+                <p className="form-error">
+                  {feedError}{' '}
+                  <button type="button" className="link-button" onClick={refreshFeed}>
+                    Retry
+                  </button>
+                </p>
+              )}
+              {!feedLoading && !feedError && feedWorkouts.length === 0 && <p className="empty-state">{feedEmptyMessage}</p>}
+
+              <div className="workout-list">
+                {feedWorkouts.map((w) => (
+                  <WorkoutListItem key={w.id} workout={w} showAthleteName={filterMode === 'date'} />
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
 

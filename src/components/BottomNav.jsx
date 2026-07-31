@@ -23,10 +23,13 @@ export default function BottomNav() {
   const isAdmin = profile?.role === 'admin'
   const [moreOpen, setMoreOpen] = useState(false)
 
+  // Same order/labels as NavBar's desktop links — "Workouts" is also the
+  // coach/admin home page ("/"), folding in what used to be a separate
+  // "Team Logs" nav destination.
   const primaryItems =
     isCoach || isAdmin
       ? [
-          { to: '/assignments', label: 'Workouts', Icon: IconClipboardList },
+          { to: '/', label: 'Workouts', Icon: IconClipboardList, end: true },
           { to: '/events', label: 'Calendar', Icon: IconCalendarEvent },
           { to: '/messages', label: 'Messages', Icon: IconMessageCircle },
           { to: '/roster', label: 'Athletes', Icon: IconUsers },
@@ -40,7 +43,6 @@ export default function BottomNav() {
   const moreItems =
     isCoach || isAdmin
       ? [
-          { to: '/', label: 'Team Logs', end: true },
           { to: '/settings', label: 'Team Theme' },
           { to: '/account', label: 'Account' },
         ]
