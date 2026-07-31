@@ -39,7 +39,7 @@ export function downloadAssignmentsPdf(dateStr, groups) {
         g.assignments.map((a) => a.profiles?.name || 'Unnamed athlete').join('\n'),
       ]
     }),
-    headStyles: { fillColor: [124, 58, 237] },
+    headStyles: { fillColor: [59, 130, 246] },
     styles: { fontSize: 10, cellPadding: 3 },
     columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 90 } },
   })

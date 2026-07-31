@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext'
 import { fetchTeamById } from '../lib/teams'
 
 const PRESETS = [
-  { name: 'Violet (default)', primary: '#7c3aed', accent: '#5b21b6' },
+  { name: 'Blue (default)', primary: '#3b82f6', accent: '#1d4ed8' },
   { name: 'Crimson', primary: '#dc2626', accent: '#991b1b' },
   { name: 'Ocean', primary: '#0284c7', accent: '#075985' },
   { name: 'Forest', primary: '#16a34a', accent: '#166534' },
@@ -18,8 +18,8 @@ export default function TeamSettingsPage() {
   const canEdit = profile?.role === 'coach'
   const { showToast } = useToast()
   const { settings, loading, previewColors, saveColors } = useTheme()
-  const [primaryColor, setPrimaryColor] = useState('#7c3aed')
-  const [accentColor, setAccentColor] = useState('#5b21b6')
+  const [primaryColor, setPrimaryColor] = useState('#3b82f6')
+  const [accentColor, setAccentColor] = useState('#1d4ed8')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')

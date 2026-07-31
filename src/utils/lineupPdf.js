@@ -30,7 +30,7 @@ export function downloadLineupPdf(event, entries) {
         })
         .join('\n') || '—',
     ]),
-    headStyles: { fillColor: [124, 58, 237] },
+    headStyles: { fillColor: [59, 130, 246] },
     styles: { fontSize: 10, cellPadding: 3 },
     columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 50 } },
   })
