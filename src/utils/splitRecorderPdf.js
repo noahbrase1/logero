@@ -38,7 +38,10 @@ export function downloadSplitRecorderPdf(dateStr, sections) {
     const maxCols = Math.max(0, ...section.athletes.map((a) => a.cells.length))
     const headerFor = (i) => section.athletes.find((a) => a.cells[i])?.cells[i]?.header || ''
     const head = [['Athlete', ...Array.from({ length: maxCols }, (_, i) => headerFor(i))]]
-    const body = section.athletes.map((a) => [a.name, ...Array.from({ length: maxCols }, (_, i) => a.cells[i]?.value || '')])
+    // Cell text is drawn by hand in didDrawCell below (inside the box), not
+    // by autoTable itself — the body stays blank so there's nothing for it
+    // to render that the box would then have to be drawn on top of.
+    const body = section.athletes.map((a) => [a.name, ...Array.from({ length: maxCols }, () => '')])
 
     autoTable(doc, {
       startY: y,
@@ -46,7 +49,35 @@ export function downloadSplitRecorderPdf(dateStr, sections) {
       body,
       headStyles: { fillColor: [59, 130, 246] },
       styles: { fontSize: 9, cellPadding: 2 },
+      bodyStyles: { minCellHeight: 14 },
       margin: { left: 14, right: 14 },
+      // A blank box under each split a coach needs to record — meant to be
+      // printed and filled in by hand at practice/a meet, same spot an
+      // already-entered time (typed in the app before exporting) shows up
+      // printed inside instead of left blank. Skipped for a column past
+      // that particular athlete's own segment count (`cells[i]` undefined)
+      // — those stay a plain empty cell, same as the app's own N/A columns,
+      // since there's nothing that athlete is meant to record there.
+      didDrawCell: (data) => {
+        if (data.section !== 'body' || data.column.index === 0) return
+        const athlete = section.athletes[data.row.index]
+        const cell = athlete?.cells[data.column.index - 1]
+        if (!cell) return
+
+        const pad = 1.5
+        const boxX = data.cell.x + pad
+        const boxY = data.cell.y + pad
+        const boxW = data.cell.width - pad * 2
+        const boxH = data.cell.height - pad * 2
+        doc.setDrawColor(140)
+        doc.rect(boxX, boxY, boxW, boxH)
+
+        if (cell.value) {
+          doc.setFontSize(9)
+          doc.setTextColor(0)
+          doc.text(cell.value, boxX + boxW / 2, boxY + boxH / 2 + 1.2, { align: 'center' })
+        }
+      },
     })
     y = doc.lastAutoTable.finalY + 10
   })
