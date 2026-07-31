@@ -366,79 +366,82 @@ export default function SplitRecorder({ athletes }) {
             </p>
           )}
           <div className="assignment-grid-wrap" key={columnLayoutKey}>
-            <table className="assignment-grid split-recorder-grid">
-              <tbody>
-                {orderedAthletes.map((athlete, index) => {
-                  const defs = perAthleteColumnDefs.get(athlete.id) || []
-                  return (
-                    <Fragment key={athlete.id}>
-                      <tr className="split-recorder-athlete-header-row">
-                        <th scope="rowgroup" rowSpan={2} className="grid-athlete-cell split-recorder-athlete-name">
-                          <span className="split-recorder-reorder-buttons">
-                            <button
-                              type="button"
-                              onClick={() => moveAthlete(athlete.id, -1)}
-                              disabled={index === 0}
-                              aria-label={`Move ${athlete.name || 'athlete'} up`}
-                            >
-                              <IconChevronUp size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveAthlete(athlete.id, 1)}
-                              disabled={index === orderedAthletes.length - 1}
-                              aria-label={`Move ${athlete.name || 'athlete'} down`}
-                            >
-                              <IconChevronDown size={14} />
-                            </button>
-                          </span>
-                          {athlete.name || 'Unnamed athlete'}
-                        </th>
-                        {Array.from({ length: maxColumns }, (_, i) => {
-                          const def = defs[i]
-                          return (
-                            <th key={i} className={`grid-day-header${def?.isSegmentStart ? ' split-recorder-segment-start' : ''}`}>
-                              {def ? (
-                                <>
-                                  {formatDistanceValue(Number(def.seg.distanceValue) || 0, def.seg.distanceUnit)}
-                                  {unitAbbrev(def.seg.distanceUnit)} ({def.repIndex + 1})
-                                </>
-                              ) : (
-                                'N/A'
-                              )}
-                            </th>
-                          )
-                        })}
-                      </tr>
-                      <tr>
-                        {Array.from({ length: maxColumns }, (_, i) => {
-                          const def = defs[i]
-                          if (!def) {
-                            return (
-                              <td key={i} className="grid-cell split-recorder-cell split-recorder-na-cell">
-                                N/A
-                              </td>
-                            )
-                          }
-                          const resolved = perAthleteResolved.get(athlete.id)
-                          const prescribed = prescribedSecondsForDef(def, resolved.type)
-                          return (
-                            <td key={i} className={`grid-cell split-recorder-cell${def.isSegmentStart ? ' split-recorder-segment-start' : ''}`}>
-                              <TimeTextInput
-                                value={entries[athlete.id]?.[i] || { hours: 0, minutes: 0, seconds: 0 }}
-                                onChange={(v) => updateCell(i, athlete.id, v)}
-                                ariaLabel={`${athlete.name || 'Athlete'} ${segmentDisplayName(def.seg)} rep ${def.repIndex + 1}`}
-                                placeholder={prescribed ? secondsToClock(prescribed) : 'e.g. 6:45'}
-                              />
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    </Fragment>
-                  )
-                })}
-              </tbody>
-            </table>
+            <div
+              className="split-recorder-grid"
+              style={{ gridTemplateColumns: `minmax(150px, auto) repeat(${maxColumns}, minmax(90px, 1fr))` }}
+            >
+              {orderedAthletes.map((athlete, index) => {
+                const defs = perAthleteColumnDefs.get(athlete.id) || []
+                const resolved = perAthleteResolved.get(athlete.id)
+                return (
+                  <Fragment key={athlete.id}>
+                    <div className="split-recorder-name-cell" style={{ gridRow: 'span 2' }}>
+                      <span className="split-recorder-reorder-buttons">
+                        <button
+                          type="button"
+                          onClick={() => moveAthlete(athlete.id, -1)}
+                          disabled={index === 0}
+                          aria-label={`Move ${athlete.name || 'athlete'} up`}
+                        >
+                          <IconChevronUp size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveAthlete(athlete.id, 1)}
+                          disabled={index === orderedAthletes.length - 1}
+                          aria-label={`Move ${athlete.name || 'athlete'} down`}
+                        >
+                          <IconChevronDown size={14} />
+                        </button>
+                      </span>
+                      {athlete.name || 'Unnamed athlete'}
+                    </div>
+                    {Array.from({ length: maxColumns }, (_, i) => {
+                      const def = defs[i]
+                      return (
+                        <div
+                          key={`h${i}`}
+                          className={`split-recorder-header-cell${def?.isSegmentStart ? ' split-recorder-segment-start' : ''}`}
+                        >
+                          {def ? (
+                            <>
+                              {formatDistanceValue(Number(def.seg.distanceValue) || 0, def.seg.distanceUnit)}
+                              {unitAbbrev(def.seg.distanceUnit)} ({def.repIndex + 1})
+                            </>
+                          ) : (
+                            'N/A'
+                          )}
+                        </div>
+                      )
+                    })}
+                    {Array.from({ length: maxColumns }, (_, i) => {
+                      const def = defs[i]
+                      if (!def) {
+                        return (
+                          <div key={`d${i}`} className="split-recorder-value-cell split-recorder-na-cell">
+                            N/A
+                          </div>
+                        )
+                      }
+                      const prescribed = prescribedSecondsForDef(def, resolved.type)
+                      return (
+                        <div
+                          key={`d${i}`}
+                          className={`split-recorder-value-cell${def.isSegmentStart ? ' split-recorder-segment-start' : ''}`}
+                        >
+                          <TimeTextInput
+                            value={entries[athlete.id]?.[i] || { hours: 0, minutes: 0, seconds: 0 }}
+                            onChange={(v) => updateCell(i, athlete.id, v)}
+                            ariaLabel={`${athlete.name || 'Athlete'} ${segmentDisplayName(def.seg)} rep ${def.repIndex + 1}`}
+                            placeholder={prescribed ? secondsToClock(prescribed) : 'e.g. 6:45'}
+                          />
+                        </div>
+                      )
+                    })}
+                  </Fragment>
+                )
+              })}
+            </div>
           </div>
         </>
       )}
