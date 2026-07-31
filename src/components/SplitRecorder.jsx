@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { IconChevronDown, IconChevronUp } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronUp, IconX } from '@tabler/icons-react'
 import { fetchAssignmentsForCoach } from '../lib/assignments'
 import { fetchTeamWorkoutsByDate } from '../lib/workouts'
 import { recordSplitEntry } from '../lib/splitRecorder'
 import { mapWithConcurrency } from '../utils/concurrency'
+import { downloadSplitRecorderPdf } from '../utils/splitRecorderPdf'
 import { toDateStr } from '../utils/week'
 import {
   ASSIGNED_REPS_FIELD_BY_TYPE,
@@ -176,6 +177,15 @@ export default function SplitRecorder({ athletes }) {
   // buttons (e.g. to match the order athletes will actually run in).
   const [athleteOrder, setAthleteOrder] = useState(() => athletes.map((a) => a.id))
 
+  // Session-only grouping dividers, same lifetime as athleteOrder — reset
+  // to none every time a new day loads. Keyed by gap index into the
+  // *displayed* (orderedAthletes) list: 0 = before the first athlete, N =
+  // after the last. A divider stays at its screen position when an
+  // athlete is reordered across it (the ▲/▼ buttons already work
+  // positionally the same way), which is the expected behavior — the line
+  // marks a spot in the running order, not a specific athlete.
+  const [dividers, setDividers] = useState({})
+
   // athleteId -> flat array of {hours,minutes,seconds}, one per that
   // athlete's OWN column (see perAthleteColumnDefs below) — never a shared
   // column set, since different athletes' columns can mean different things.
@@ -197,6 +207,7 @@ export default function SplitRecorder({ athletes }) {
       .then(([assignments, workouts]) => {
         setDayAssignments(assignments)
         setAthleteOrder(athletes.map((a) => a.id))
+        setDividers({})
         const assignmentMap = new Map(assignments.map((a) => [a.athlete_id, a]))
         setEntries(buildInitialEntries(athletes, workouts, assignmentMap))
       })
@@ -229,6 +240,24 @@ export default function SplitRecorder({ athletes }) {
       if (idx === -1 || swapWith < 0 || swapWith >= full.length) return prev
       const next = full.slice()
       ;[next[idx], next[swapWith]] = [next[swapWith], next[idx]]
+      return next
+    })
+  }
+
+  // gapIndex is a position in the *displayed* orderedAthletes list — 0
+  // before the first athlete, orderedAthletes.length after the last one.
+  function addDivider(gapIndex) {
+    setDividers((prev) => ({ ...prev, [gapIndex]: '' }))
+  }
+
+  function updateDivider(gapIndex, label) {
+    setDividers((prev) => ({ ...prev, [gapIndex]: label }))
+  }
+
+  function removeDivider(gapIndex) {
+    setDividers((prev) => {
+      const next = { ...prev }
+      delete next[gapIndex]
       return next
     })
   }
@@ -329,6 +358,96 @@ export default function SplitRecorder({ athletes }) {
     loadDay()
   }
 
+  // Groups orderedAthletes into PDF sections at whatever gaps the coach
+  // has placed a divider, in screen order. An athlete with nothing to
+  // record (no assignment) is skipped — same "nothing to export" reasoning
+  // buildAthletePayload already applies for saving. A group that ends up
+  // with zero exportable athletes (e.g. a divider placed right before
+  // another divider) is dropped rather than printed empty.
+  function buildExportSections() {
+    const groups = []
+    let current = { label: '', athletes: [] }
+    orderedAthletes.forEach((athlete, index) => {
+      if (dividers[index] !== undefined) {
+        groups.push(current)
+        current = { label: dividers[index].trim() || `Group ${groups.length + 1}`, athletes: [] }
+      }
+      current.athletes.push(athlete)
+    })
+    groups.push(current)
+
+    return groups
+      .map((group) => ({
+        label: group.label,
+        athletes: group.athletes
+          .map((athlete) => {
+            const resolved = perAthleteResolved.get(athlete.id)
+            if (!resolved) return null
+            const defs = perAthleteColumnDefs.get(athlete.id) || []
+            const values = entries[athlete.id] || []
+            return {
+              name: athlete.name || 'Unnamed athlete',
+              cells: defs.map((def, i) => {
+                const v = values[i]
+                const seconds = v ? hmsToSeconds(v) : 0
+                return {
+                  header: `${formatDistanceValue(Number(def.seg.distanceValue) || 0, def.seg.distanceUnit)}${unitAbbrev(def.seg.distanceUnit)} (${def.repIndex + 1})`,
+                  value: seconds > 0 ? secondsToClock(seconds) : '',
+                }
+              }),
+            }
+          })
+          .filter(Boolean),
+      }))
+      .filter((group) => group.athletes.length > 0)
+  }
+
+  function handleExportPdf() {
+    const sections = buildExportSections()
+    if (sections.length === 0) {
+      showToast('Nothing to export yet', 'error')
+      return
+    }
+    downloadSplitRecorderPdf(date, sections)
+  }
+
+  // A full-width row spanning every column, placed between athlete blocks
+  // (see gapIndex in addDivider/updateDivider/removeDivider above) — a
+  // slim "+ Add divider" affordance where none exists yet, or an editable
+  // group-name input once one's been added. Purely a display/export
+  // grouping, never written back to any assignment.
+  function renderDividerRow(gapIndex) {
+    const label = dividers[gapIndex]
+    if (label === undefined) {
+      return (
+        <div key={`divider-${gapIndex}`} className="split-recorder-divider-row split-recorder-divider-empty">
+          <button type="button" className="split-recorder-divider-add" onClick={() => addDivider(gapIndex)}>
+            + Add divider
+          </button>
+        </div>
+      )
+    }
+    return (
+      <div key={`divider-${gapIndex}`} className="split-recorder-divider-row">
+        <input
+          type="text"
+          className="split-recorder-divider-input"
+          value={label}
+          placeholder="Group name (e.g. Distance, Sprinters)"
+          onChange={(e) => updateDivider(gapIndex, e.target.value)}
+        />
+        <button
+          type="button"
+          className="split-recorder-divider-remove"
+          onClick={() => removeDivider(gapIndex)}
+          aria-label="Remove divider"
+        >
+          <IconX size={14} />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="split-recorder">
       <div className="split-recorder-setup">
@@ -375,6 +494,7 @@ export default function SplitRecorder({ athletes }) {
                 const resolved = perAthleteResolved.get(athlete.id)
                 return (
                   <Fragment key={athlete.id}>
+                    {renderDividerRow(index)}
                     <div className="split-recorder-name-cell" style={{ gridRow: 'span 2' }}>
                       <span className="split-recorder-reorder-buttons">
                         <button
@@ -441,6 +561,7 @@ export default function SplitRecorder({ athletes }) {
                   </Fragment>
                 )
               })}
+              {renderDividerRow(orderedAthletes.length)}
             </div>
           </div>
         </>
@@ -449,6 +570,9 @@ export default function SplitRecorder({ athletes }) {
       <div className="split-recorder-actions">
         <button type="button" onClick={handleSave} disabled={saving || loadingDay}>
           {saving ? 'Saving…' : 'Save splits'}
+        </button>
+        <button type="button" className="secondary" onClick={handleExportPdf} disabled={loadingDay || nobodyAssigned}>
+          Export as PDF
         </button>
         <span className="split-recorder-hint">Save anytime — come back later to keep adding times before it's complete.</span>
       </div>

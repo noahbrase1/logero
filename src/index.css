@@ -3435,6 +3435,66 @@ button.link-button.danger {
   cursor: default;
 }
 
+/* A grouping line the coach can drop between athletes (e.g. "Sprinters" /
+   "Distance") — purely a display/export grouping, never written back to
+   any assignment. Spans every column via inline gridColumn: '1 / -1'
+   (set in SplitRecorder.jsx, since the column count is dynamic), so it
+   reads as a full-width break in the grid rather than a per-column cell. */
+.split-recorder-divider-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+}
+
+.split-recorder-divider-row:not(.split-recorder-divider-empty) {
+  background: var(--accent-bg);
+  border-top: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+}
+
+.split-recorder-divider-add {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.split-recorder-divider-add:hover {
+  color: var(--accent);
+}
+
+.split-recorder-divider-input {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  color: var(--text-h);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0.2rem 0.3rem;
+}
+
+.split-recorder-divider-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.split-recorder-divider-remove:hover {
+  color: var(--accent);
+}
+
 .split-recorder-actions {
   display: flex;
   align-items: center;
