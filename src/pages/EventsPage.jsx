@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { IconCalendarEvent } from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
 import { createEvent, deleteEvent, fetchEvents, updateEvent } from '../lib/events'
 import { fetchAssignmentsForAthlete } from '../lib/assignments'
@@ -10,9 +11,10 @@ import { withTimeout } from '../utils/withTimeout'
 import EventCard from '../components/EventCard'
 import EventCalendar from '../components/EventCalendar'
 import EventForm from '../components/EventForm'
+import Fab from '../components/Fab'
 import WeeklyMileageSection from '../components/WeeklyMileageSection'
 
-const emptyForm = () => ({ name: '', date: '', startTime: '', endTime: '', location: '', notes: '' })
+const emptyForm = () => ({ name: '', date: '', startTime: '', endTime: '', location: '', notes: '', category: 'other' })
 
 export default function EventsPage() {
   const { user, profile } = useAuth()
@@ -126,6 +128,7 @@ export default function EventsPage() {
       endTime: event.end_time?.slice(0, 5) || '',
       location: event.location || '',
       notes: event.notes || '',
+      category: event.category || 'other',
     })
   }
 
@@ -197,11 +200,17 @@ export default function EventsPage() {
   return (
     <div className="page">
       <div className="page-header-row">
-        <h1>Calendar</h1>
+        <h1>
+          <IconCalendarEvent className="page-title-icon" size={26} aria-hidden="true" />
+          Calendar
+        </h1>
         {isCoach && !formOpen && !editingId && (
-          <button type="button" onClick={startCreate}>
-            + New event
-          </button>
+          <>
+            <button type="button" className="page-header-inline-action" onClick={startCreate}>
+              + New event
+            </button>
+            <Fab label="New event" onClick={startCreate} />
+          </>
         )}
       </div>
 

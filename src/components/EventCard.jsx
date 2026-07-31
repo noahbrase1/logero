@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { formatDate, formatTimeRange } from '../utils/format'
+import { eventCategoryLabel, formatDate, formatTimeRange } from '../utils/format'
 import EventForm from './EventForm'
 
 // Shared event summary card — used by both EventsPage's list and
@@ -39,6 +39,7 @@ export default function EventCard({ event, isCoach, onEdit, onDelete, editing })
           {formatDate(event.date)}
           {timeRange && ` — ${timeRange}`}
         </div>
+        <span className={`type-badge cat-${event.category || 'other'}`}>{eventCategoryLabel(event.category || 'other')}</span>
         <h3>
           <Link to={`/events/${event.id}`}>{event.name}</Link>
         </h3>

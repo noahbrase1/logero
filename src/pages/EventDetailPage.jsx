@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { IconCalendarEvent, IconTrophy, IconUsers } from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
 import {
   createEventEntry,
@@ -14,6 +15,12 @@ import { formatDate, formatTime, formatTimeRange } from '../utils/format'
 import { downloadLineupPdf } from '../utils/lineupPdf'
 import { groupAthletesByTeam } from '../utils/lineup'
 import EventEntryForm from '../components/EventEntryForm'
+
+const CATEGORY_ICONS = {
+  meet: IconTrophy,
+  team_event: IconUsers,
+  other: IconCalendarEvent,
+}
 
 export default function EventDetailPage() {
   const { id } = useParams()
@@ -128,6 +135,7 @@ export default function EventDetailPage() {
   if (!event) return null
 
   const timeRange = formatTimeRange(event.start_time, event.end_time)
+  const CategoryIcon = CATEGORY_ICONS[event.category || 'other'] || IconCalendarEvent
 
   return (
     <div className="page">
@@ -137,7 +145,10 @@ export default function EventDetailPage() {
 
       <div className="page-header-row">
         <div>
-          <h1>{event.name}</h1>
+          <h1>
+            <CategoryIcon className="page-title-icon" size={26} aria-hidden="true" />
+            {event.name}
+          </h1>
           <p className="page-subtitle">
             {formatDate(event.date)}
             {timeRange && ` — ${timeRange}`}

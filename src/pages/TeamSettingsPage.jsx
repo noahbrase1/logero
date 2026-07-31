@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { IconPalette } from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
@@ -96,7 +97,10 @@ export default function TeamSettingsPage() {
 
   return (
     <div className="page">
-      <h1>Team theme</h1>
+      <h1>
+        <IconPalette className="page-title-icon" size={26} aria-hidden="true" />
+        Team theme
+      </h1>
       <p className="page-subtitle">
         Pick the colors used across buttons, nav, and highlights for the whole team.
       </p>

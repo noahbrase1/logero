@@ -2,15 +2,17 @@
   --text: #2b2733;
   --text-muted: #6b6375;
   --text-h: #08060d;
-  --bg: #faf9fb;
+  --nav-text: #4b5563;
+  --bg: #f8f9fc;
   --surface: #ffffff;
-  --border: #e5e4e7;
+  --border: #ececef;
   --accent: #3b82f6;
   --accent-dark: #1d4ed8;
   --accent-rgb: 59, 130, 246;
   --accent-bg: rgba(59, 130, 246, 0.08);
   --accent-border: rgba(59, 130, 246, 0.5);
   --accent-shadow: rgba(59, 130, 246, 0.35);
+
   --danger: #c0392b;
   --success: #1e7d3f;
   --warning: #d97706;
@@ -27,6 +29,14 @@
   --lifting: #ff7f50;
   --note: #6b7280;
   --other: #e11d48;
+
+  /* Event category colors — FIXED, same independence-from-theme reasoning
+     as the sport colors above, namespaced as cat-* classes (vs. type-* for
+     sport) so "other" (event, uncategorized) never collides with workout's
+     own "other" sport type despite sharing a name. */
+  --event-meet: #dc2626;
+  --event-team: #0891b2;
+  --event-other: #6b7280;
 
   /* Dashboard metric-card colors — a separate, harmonious trio deliberately
      distinct from the sport-type palette above, so a metric card is never
@@ -96,6 +106,17 @@ h1 {
   color: var(--text-h);
   margin: 0 0 var(--space-2);
   padding-left: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Section-header icon (Calendar/Workouts/Roster/etc) — neutral, not
+   action/brand-colored, since it's decoration for a non-action heading,
+   not a button or nav-active-state indicator. */
+.page-title-icon {
+  color: var(--nav-text);
+  flex-shrink: 0;
 }
 
 h1::before {
@@ -106,7 +127,7 @@ h1::before {
   bottom: 0.12em;
   width: 4px;
   border-radius: var(--radius-pill);
-  background: linear-gradient(180deg, var(--accent), var(--accent-dark));
+  background: linear-gradient(180deg, var(--nav-text), var(--text-muted));
 }
 
 .auth-card h1 {
@@ -178,16 +199,18 @@ button:disabled {
   transform: none;
 }
 
+/* Neutral — a secondary button (Cancel/Copy/Paste/toggle) is a lesser
+   action than the primary (themed) button, not a themed action itself. */
 button.secondary {
   background: var(--surface);
-  color: var(--accent);
-  border: 1px solid var(--accent-border);
+  color: var(--nav-text);
+  border: 1px solid var(--border);
   box-shadow: none;
 }
 
 button.secondary:hover:not(:disabled) {
-  background: var(--accent-bg);
-  border-color: var(--accent);
+  background: var(--bg);
+  border-color: var(--text-muted);
   box-shadow: var(--shadow-sm);
 }
 
@@ -263,7 +286,8 @@ label {
 .workout-form,
 .quick-note-form,
 .entry-team-block,
-.segment-editor-card {
+.segment-editor-card,
+.splits-fieldset {
   box-shadow: var(--shadow-sm);
   transition: box-shadow var(--transition-base), transform var(--transition-base), border-color var(--transition-base);
 }
@@ -301,10 +325,9 @@ label {
   width: 100%;
   max-width: 380px;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 2rem;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -512,6 +535,12 @@ label {
   background: var(--accent-dark);
 }
 
+.navbar-links a svg,
+.navbar-drawer a svg {
+  vertical-align: -4px;
+  margin-right: 0.3rem;
+}
+
 .navbar-user {
   display: flex;
   align-items: center;
@@ -521,35 +550,9 @@ label {
   white-space: nowrap;
 }
 
-/* --- Mobile nav: hamburger toggle + slide-out drawer. Hidden entirely on
-   desktop; swaps in for .navbar-links/.navbar-user below the breakpoint
-   where there isn't room for every role's nav items in a single row (the
-   coach nav alone is 7 items + Account + Log out). --- */
-
-.navbar-menu-toggle {
-  display: none;
-  background: none;
-  color: var(--text-h);
-  padding: var(--space-1);
-  box-shadow: none;
-  flex-shrink: 0;
-}
-
-.navbar-menu-toggle:hover:not(:disabled) {
-  background: var(--accent-bg);
-  color: var(--text-h);
-  transform: none;
-  box-shadow: none;
-}
-
-.navbar-drawer-overlay {
-  display: none;
-}
-
-.navbar-drawer {
-  display: none;
-}
-
+/* Below 860px, NavBar's own links/user chrome hide entirely in favor of
+   BottomNav.jsx + Fab.jsx (mounted alongside NavBar in App.jsx) — replaces
+   what used to be a hamburger toggle + slide-out drawer here. */
 @media (max-width: 860px) {
   .navbar {
     gap: var(--space-3);
@@ -557,88 +560,131 @@ label {
 
   .navbar-links,
   /* Excludes .navbar-simple (SuperAdminHeader) — that header has no
-     hamburger/drawer to fall back on (a super admin has no nav links at
-     all, just identity + logout), so hiding .navbar-user there would
-     remove the only way to log out on mobile with nothing replacing it. */
+     BottomNav fallback (a super admin has no nav links at all, just
+     identity + logout, and is deliberately out of scope for BottomNav),
+     so hiding .navbar-user there would remove the only way to log out on
+     mobile with nothing replacing it. */
   .navbar:not(.navbar-simple) .navbar-user {
     display: none;
   }
+}
 
-  .navbar-menu-toggle {
+/* --- Bottom nav (BottomNav.jsx) — mobile-only persistent tab bar,
+   replacing the old hamburger/drawer. Always rendered; hidden above the
+   860px breakpoint via this same display:none/flex flip. --- */
+
+.bottom-nav {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .bottom-nav {
+    display: flex;
+    justify-content: space-around;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 900;
+    background: var(--surface);
+    box-shadow: 0 -2px 12px rgba(15, 15, 20, 0.1);
+    padding: var(--space-2) var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom));
+  }
+
+  main {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  background: none;
+  box-shadow: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--nav-text);
+  text-decoration: none;
+}
+
+.bottom-nav-item:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--nav-text);
+  transform: none;
+  box-shadow: none;
+}
+
+.bottom-nav-item.active {
+  color: var(--accent);
+}
+
+.bottom-nav-more-heading {
+  margin-top: 0;
+}
+
+.bottom-nav-more-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.bottom-nav-more-list a {
+  display: block;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+}
+
+.bottom-nav-more-list a:hover,
+.bottom-nav-more-list a.active {
+  background: var(--bg);
+}
+
+.bottom-nav-more-list .link-button.danger {
+  text-align: left;
+  padding: var(--space-3);
+}
+
+/* --- Floating action button (Fab.jsx) — mobile-only, replaces a page's
+   inline top-of-page create button (see .page-header-inline-action, the
+   inverse half of this same breakpoint flip). Sits above the bottom nav. --- */
+
+.fab {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .fab {
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-
-  .navbar-drawer-overlay {
-    display: block;
     position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    border: none;
-    border-radius: 0;
+    right: var(--space-5);
+    bottom: calc(64px + var(--space-5) + env(safe-area-inset-bottom));
+    width: 56px;
+    height: 56px;
     padding: 0;
-    background: rgba(8, 6, 13, 0.45);
-    box-shadow: none;
-    z-index: 20;
-    cursor: default;
-  }
-
-  .navbar-drawer {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(78vw, 320px);
-    background: var(--surface);
-    border-left: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    z-index: 950;
     box-shadow: var(--shadow-lg);
-    padding: calc(var(--space-6) + env(safe-area-inset-top)) var(--space-4) var(--space-4);
-    z-index: 21;
-    transform: translateX(100%);
-    transition: transform var(--transition-base);
-    overflow-y: auto;
   }
 
-  .navbar-drawer.open {
-    transform: translateX(0);
-  }
-
-  .navbar-drawer a {
-    color: var(--text-muted);
-    text-decoration: none;
-    font-size: var(--font-size-md);
-    font-weight: 600;
-    padding: var(--space-3) var(--space-3);
-    border-radius: var(--radius-sm);
-  }
-
-  .navbar-drawer a.active {
-    color: white;
-    background: var(--accent);
-  }
-
-  .navbar-drawer-user {
-    margin-top: auto;
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    font-size: var(--font-size-sm);
-    color: var(--text-muted);
+  .page-header-inline-action {
+    display: none;
   }
 }
 
 .page {
   max-width: 900px;
   margin: 0 auto;
-  padding: var(--space-8) var(--space-6);
+  padding: var(--space-10) var(--space-8);
 }
 
 /* --- Team logs feed: date/athlete filter --- */
@@ -650,7 +696,9 @@ label {
 }
 
 .feed-view-heading {
-  font-size: 1.05rem;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--text-h);
   border-bottom: 1px solid var(--border);
   padding-bottom: 0.5rem;
   margin-bottom: 1rem;
@@ -658,6 +706,7 @@ label {
 
 .page-subtitle {
   color: var(--text-muted);
+  font-size: var(--font-size-sm);
   margin-top: -0.5rem;
 }
 
@@ -667,19 +716,32 @@ label {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-8);
 }
 
 .type-toggle button {
   background: var(--surface);
   color: var(--text-muted);
-  border: 1px solid var(--border);
+  /* Transparent, not removed — reserves the same 1px so .active's
+     border-color below doesn't shift layout when it lights up; borders are
+     reserved for the actively-selected tab, not shown by default. */
+  border: 1px solid transparent;
+  /* Neither of these is a primary action — reset the base button rule's
+     orange glow-shadow, which this selector previously never overrode
+     (the same gap button.secondary already covers for its own case). */
+  box-shadow: none;
 }
 
 .type-toggle button.active {
   background: var(--accent-bg);
   color: var(--accent);
   border-color: var(--accent);
+  box-shadow: none;
+}
+
+.type-toggle button:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
 }
 
 .workout-form {
@@ -687,7 +749,6 @@ label {
   flex-direction: column;
   gap: 1.25rem;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.5rem;
 }
@@ -699,7 +760,7 @@ label {
 }
 
 .splits-fieldset {
-  border: 1px solid var(--border);
+  background: var(--bg);
   border-radius: 8px;
   padding: 1rem;
   min-width: 0;
@@ -764,7 +825,6 @@ label {
 
 .workout-card {
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.25rem;
 }
@@ -840,6 +900,23 @@ label {
 .type-other {
   background: rgba(225, 29, 72, 0.1);
   color: var(--other);
+}
+
+/* Event category badge modifiers (EventCard) — cat-* namespace, distinct
+   from the sport type-* classes above despite "other" existing in both. */
+.cat-meet {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--event-meet);
+}
+
+.cat-team_event {
+  background: rgba(8, 145, 178, 0.1);
+  color: var(--event-team);
+}
+
+.cat-other {
+  background: rgba(107, 114, 128, 0.12);
+  color: var(--event-other);
 }
 
 .type-admin,
@@ -1034,13 +1111,8 @@ label {
   align-items: center;
   gap: 1rem;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1rem 1.25rem;
-}
-
-.roster-item:hover {
-  border-color: var(--accent-border);
 }
 
 .roster-actions {
@@ -1081,7 +1153,6 @@ label {
   justify-content: space-between;
   align-items: center;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1rem 1.25rem;
   gap: 1rem;
@@ -1176,7 +1247,6 @@ label {
   flex-direction: column;
   min-width: 190px;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   overflow: hidden;
@@ -1332,7 +1402,6 @@ label {
 .dm-picker {
   margin: 0 0.75rem 1rem;
   padding: 0.75rem;
-  border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg);
   display: flex;
@@ -1359,6 +1428,22 @@ label {
 .dm-picker-list button {
   width: 100%;
   text-align: left;
+  /* A picker row isn't a primary action button — without this override it
+     inherited the base button's solid action-color fill (previously a
+     less-jarring solid accent-blue fill, now solid orange, making it much
+     more obviously wrong: every candidate row would render as a giant CTA). */
+  background: none;
+  color: var(--text);
+  font-weight: 500;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+
+.dm-picker-list button:hover:not(:disabled) {
+  background: var(--accent-bg);
+  transform: none;
+  box-shadow: none;
 }
 
 .dm-picker-list .type-badge {
@@ -1412,15 +1497,14 @@ a.conversation-back-link {
   max-width: 65%;
   align-self: flex-start;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 0.5rem 0.75rem;
+  box-shadow: var(--shadow-sm);
 }
 
 .message-bubble.own {
   align-self: flex-end;
   background: var(--accent-bg);
-  border-color: var(--accent);
 }
 
 .message-meta {
@@ -1580,7 +1664,6 @@ a.conversation-back-link {
   flex-direction: column;
   gap: 1.25rem;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.5rem;
   max-width: 480px;
@@ -1598,6 +1681,9 @@ a.conversation-back-link {
   border-radius: 999px;
   border: 2px solid var(--border);
   padding: 0;
+  /* A color swatch isn't a primary action — reset the base button rule's
+     orange glow-shadow (same gap as .type-toggle button, see above). */
+  box-shadow: none;
 }
 
 .preset-swatch:hover {
@@ -1691,7 +1777,7 @@ input[type='color'] {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.25rem;
+  margin-bottom: var(--space-8);
 }
 
 .lineup-header-actions {
@@ -1715,7 +1801,7 @@ button.link-button.danger {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
-  margin: 1.5rem 0 0.75rem;
+  margin: var(--space-8) 0 var(--space-4);
 }
 
 .events-list {
@@ -1730,7 +1816,10 @@ button.link-button.danger {
   align-items: flex-start;
   gap: 1rem;
   background: var(--surface);
-  border: 1px solid var(--border);
+  /* Transparent, not removed — reserves the 1px so .event-card-editing's
+     border-color below can show a real border for "this card is actively
+     being edited" without a layout shift; not shown by default. */
+  border: 1px solid transparent;
   border-radius: 12px;
   padding: 1.25rem;
 }
@@ -1797,14 +1886,14 @@ button.link-button.danger {
 /* --- Month-view event calendar --- */
 
 .event-calendar {
-  margin-bottom: 2rem;
+  margin-bottom: var(--space-10);
 }
 
 .calendar-nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-6);
 }
 
 .calendar-nav-title {
@@ -1828,10 +1917,61 @@ button.link-button.danger {
   font-weight: 600;
 }
 
+/* --- Calendar legend (CalendarLegend) — explains the day-cell dots'
+   colors, grouped into workout-sport and event-category clusters (see that
+   component's own header comment for why they're not merged into one flat
+   list). Base visual language matches .type-badge's pill convention. --- */
+
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.calendar-legend-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.calendar-legend-group-label {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.calendar-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.calendar-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+}
+
+.calendar-legend-dot.type-running { background: var(--running); }
+.calendar-legend-dot.type-swim { background: var(--swim); }
+.calendar-legend-dot.type-bike { background: var(--bike); }
+.calendar-legend-dot.type-lifting { background: var(--lifting); }
+.calendar-legend-dot.type-other { background: var(--other); }
+.calendar-legend-dot.cat-meet { background: var(--event-meet); }
+.calendar-legend-dot.cat-team_event { background: var(--event-team); }
+.calendar-legend-dot.cat-other { background: var(--event-other); }
+
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 7px;
 }
 
 .calendar-weekday {
@@ -1847,9 +1987,12 @@ button.link-button.danger {
 .calendar-cell {
   background: var(--surface);
   color: var(--text);
-  border: 1px solid var(--border);
+  /* Transparent, not removed — reserves the 1px so .calendar-cell-has-events/
+     -selected below can show a real border without shifting layout; a plain
+     day cell shows no border, just gets shadow-lifted off the page. */
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
   padding: 0.4rem;
   min-height: 90px;
   display: flex;
@@ -1907,6 +2050,14 @@ button.link-button.danger {
   color: var(--text-h);
 }
 
+/* Today gets a light cell-wide tint plus a bold date number — not just the
+   small filled circle below, which stays too (additive, not a replacement:
+   the circle alone read as too subtle to call out "today" at a glance). */
+.calendar-cell.calendar-cell-today {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
 .calendar-cell-today .calendar-cell-date {
   display: inline-flex;
   align-items: center;
@@ -1917,6 +2068,7 @@ button.link-button.danger {
   border-radius: var(--radius-pill);
   background: var(--accent);
   color: white;
+  font-weight: 800;
 }
 
 .calendar-cell-miles {
@@ -1953,13 +2105,19 @@ button.link-button.danger {
   width: 100%;
 }
 
-.calendar-cell-dot {
+/* One dot per event that day, colored by category — see
+   event_categories_schema.sql and CalendarLegend for what each color
+   means. Same size/shape convention as the assignment dots below. */
+.calendar-cell-event-dot {
   width: 6px;
   height: 6px;
   border-radius: var(--radius-pill);
-  background: var(--accent);
   flex-shrink: 0;
 }
+
+.calendar-cell-event-dot.cat-meet { background: var(--event-meet); }
+.calendar-cell-event-dot.cat-team_event { background: var(--event-team); }
+.calendar-cell-event-dot.cat-other { background: var(--event-other); }
 
 /* --- Athlete calendar: assigned-workout indicators ---
    A second row of dots alongside (not inside) .calendar-cell-events, so it
@@ -2016,8 +2174,8 @@ button.link-button.danger {
 }
 
 .calendar-day-panel {
-  margin-top: 1.25rem;
-  padding-top: 1rem;
+  margin-top: var(--space-8);
+  padding-top: var(--space-5);
   border-top: 1px dashed var(--border);
 }
 
@@ -2103,8 +2261,65 @@ button.link-button.danger {
 .assignments-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
+  gap: 1.1rem;
+  margin-bottom: var(--space-8);
+}
+
+/* --- Assignments List view: one shadow-elevated card per day
+   (AssignmentDayGroup), each holding one row per athlete's assignment.
+   Replaces the old flat, ungrouped .assignment-row list. --- */
+
+.assignment-day-group {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+}
+
+.assignment-day-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.assignment-day-date {
+  font-weight: 700;
+  font-size: var(--font-size-md);
+  color: var(--text-h);
+}
+
+.assignment-day-count {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.assignment-day-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.assignment-athlete-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid transparent;
+}
+
+.assignment-athlete-row:hover {
+  background: var(--bg);
+}
+
+.assignment-athlete-row .assignment-target-summary {
+  flex: 1;
+  min-width: 160px;
 }
 
 .assignment-row {
@@ -2114,7 +2329,6 @@ button.link-button.danger {
   flex-wrap: wrap;
   gap: 0.75rem;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.85rem 1.1rem;
 }
@@ -2137,7 +2351,6 @@ button.link-button.danger {
 
 .assignment-card {
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.1rem 1.25rem;
 }
@@ -2274,7 +2487,6 @@ button.link-button.danger {
 }
 
 .segment-editor-card {
-  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.85rem;
   background: var(--bg);
@@ -2439,7 +2651,7 @@ button.link-button.danger {
 }
 
 .entry-team-block {
-  border: 1px solid var(--border);
+  background: var(--bg);
   border-radius: 8px;
   padding: 0.75rem;
 }
@@ -2469,7 +2681,6 @@ button.link-button.danger {
   flex-direction: column;
   gap: 1rem;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.25rem;
   margin-bottom: 1.5rem;
@@ -2481,7 +2692,6 @@ button.link-button.danger {
 
 .quick-note-card {
   background: var(--bg);
-  border: 1px dashed var(--border);
   border-radius: 12px;
   padding: 1rem 1.25rem;
 }
@@ -2518,7 +2728,6 @@ button.link-button.danger {
 .group-manage-panel {
   margin-top: 0.75rem;
   padding: 1rem;
-  border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg);
   display: flex;
@@ -2583,7 +2792,6 @@ button.link-button.danger {
   align-items: center;
   gap: 1.25rem;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.85rem 1.1rem;
 }
@@ -2666,6 +2874,15 @@ button.link-button.danger {
   gap: var(--space-2);
   z-index: 1000;
   pointer-events: none;
+}
+
+/* Clears the bottom nav + FAB stack (both fixed to the same corner/edge on
+   mobile) rather than appearing underneath or overlapping them. */
+@media (max-width: 860px) {
+  .toast-stack {
+    bottom: calc(64px + env(safe-area-inset-bottom) + var(--space-4));
+    right: var(--space-4);
+  }
 }
 
 .toast {
@@ -2754,7 +2971,6 @@ button.link-button.danger {
 
 .skeleton-card {
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-5);
   box-shadow: var(--shadow-sm);
@@ -2908,7 +3124,6 @@ button.link-button.danger {
 
 .progress-meter-card {
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-4);
   box-shadow: var(--shadow-sm);
@@ -3091,7 +3306,7 @@ button.link-button.danger {
 .assignment-grid-section {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-6);
 }
 
 .assignment-grid-toolbar {
@@ -3118,6 +3333,7 @@ button.link-button.danger {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
 }
 
 .assignment-grid {
@@ -3517,12 +3733,26 @@ button.link-button.danger {
   margin-bottom: 1.25rem;
 }
 
+/* Label reads as a small muted caption (matching .events-section-heading's
+   convention); the date value inside it is reset back to normal body size/
+   case so it doesn't inherit the caption's shrink — a value should always
+   read more prominently than its label. */
 .export-day-toolbar label {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  font-size: 0.85rem;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 700;
   color: var(--text-muted);
+}
+
+.export-day-toolbar label input {
+  font-size: 1rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .export-groups-list {
@@ -3595,7 +3825,8 @@ button.link-button.danger {
     --text: #d8d5de;
     --text-muted: #a29db0;
     --text-h: #f5f4f7;
-    --bg: #131117;
+    --nav-text: #9aa1ac;
+    --bg: #121319;
     --surface: #1c1a22;
     --border: #322f3a;
     --accent-bg: rgba(59, 130, 246, 0.18);

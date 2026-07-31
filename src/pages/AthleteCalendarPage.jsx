@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { IconCalendarEvent } from '@tabler/icons-react'
 import { fetchProfile, fetchWorkouts } from '../lib/workouts'
 import { fetchEvents } from '../lib/events'
 import { fetchAssignmentsForAthlete } from '../lib/assignments'
@@ -57,7 +58,10 @@ export default function AthleteCalendarPage() {
   return (
     <div className="page">
       <div className="page-header-row">
-        <h1>{profile.name || 'Athlete'}'s calendar</h1>
+        <h1>
+          <IconCalendarEvent className="page-title-icon" size={26} aria-hidden="true" />
+          {profile.name || 'Athlete'}'s calendar
+        </h1>
         <Link to={`/athletes/${id}`} className="link-button">
           ← Back to {isRemoved ? 'former athlete' : "athlete's"} workouts
         </Link>

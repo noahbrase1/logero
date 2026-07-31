@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { IconUsers } from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
 import {
   approveProfile,
@@ -114,7 +115,10 @@ export default function RosterPage() {
   return (
     <div className="page">
       <div className="page-header-row">
-        <h1>Roster</h1>
+        <h1>
+          <IconUsers className="page-title-icon" size={26} aria-hidden="true" />
+          Roster
+        </h1>
         <Link to="/former-athletes" className="link-button">
           Former athletes →
         </Link>

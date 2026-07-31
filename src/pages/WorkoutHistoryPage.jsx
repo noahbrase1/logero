@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { IconClipboardList } from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
 import { fetchWorkouts } from '../lib/workouts'
 import WorkoutListItem from '../components/WorkoutListItem'
@@ -49,7 +50,10 @@ export default function WorkoutHistoryPage({ userId, title = 'Workout history', 
 
   return (
     <div className="page">
-      <h1>{title}</h1>
+      <h1>
+        <IconClipboardList className="page-title-icon" size={26} aria-hidden="true" />
+        {title}
+      </h1>
 
       <div className="filter-bar">
         <label>

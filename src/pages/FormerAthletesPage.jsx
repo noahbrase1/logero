@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { IconUsers } from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
 import { fetchRemovedAthletes, reinstateAthlete } from '../lib/workouts'
 import { useToast } from '../context/ToastContext'
@@ -41,7 +42,10 @@ export default function FormerAthletesPage() {
     <div className="page">
       <div className="page-header-row">
         <div>
-          <h1>Former athletes</h1>
+          <h1>
+            <IconUsers className="page-title-icon" size={26} aria-hidden="true" />
+            Former athletes
+          </h1>
           <p className="page-subtitle">Kept for your records — no app access, workout history preserved.</p>
         </div>
         <Link to="/roster" className="link-button">

@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { getPendingInvite } from './utils/pendingInvite'
+import BottomNav from './components/BottomNav'
 import NavBar from './components/NavBar'
 import SuperAdminHeader from './components/SuperAdminHeader'
 import TeamStatusBanner from './components/TeamStatusBanner'
@@ -161,6 +162,7 @@ export default function App() {
           </Routes>
         )}
       </main>
+      <BottomNav />
     </>
   )
 }

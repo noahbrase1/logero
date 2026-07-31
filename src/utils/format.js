@@ -145,6 +145,18 @@ export function workoutTypeLabel(type) {
   return WORKOUT_TYPE_LABELS[type] || type
 }
 
+// Display label + badge/dot/legend text for an events.category value —
+// shared across EventForm, EventCard, EventCalendar, CalendarLegend.
+export const EVENT_CATEGORY_LABELS = {
+  meet: 'Meet',
+  team_event: 'Team event',
+  other: 'Other',
+}
+
+export function eventCategoryLabel(category) {
+  return EVENT_CATEGORY_LABELS[category] || category
+}
+
 // --- Flexible single-field time entry: "58" / "6:45" / "1:06:45", parsed
 // right-to-left (rightmost group is always seconds). Throws with a
 // user-facing message on anything unrecognized.

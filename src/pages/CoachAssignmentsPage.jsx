@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { IconClipboardList } from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
 import { createAssignment, fetchAssignmentsForCoach } from '../lib/assignments'
 import { fetchApprovedAthletes } from '../lib/workouts'
-import { formatDate, summarizeAssignment, workoutTypeLabel } from '../utils/format'
-import { toDateStr } from '../utils/week'
+import { addDays, formatWeekRangeLabel, parseDateStr, startOfWeek, toDateStr } from '../utils/week'
+import AssignmentDayGroup from '../components/AssignmentDayGroup'
 import AssignmentForm from '../components/AssignmentForm'
 import AssignmentGrid from '../components/AssignmentGrid'
 import ExportDayModal from '../components/ExportDayModal'
@@ -31,18 +32,42 @@ export default function CoachAssignmentsPage() {
   const [exportLoading, setExportLoading] = useState(false)
   const [exportError, setExportError] = useState('')
 
-  function load() {
+  // List view's own rolling week window — same pattern AssignmentGrid uses
+  // for its week nav, replacing what used to be an unbounded
+  // fetchAssignmentsForCoach() covering every assignment ever (which would
+  // otherwise render every day-card at once now that the list is grouped).
+  const [listWeekStart, setListWeekStart] = useState(() => startOfWeek(new Date()))
+
+  function loadAthletes() {
+    fetchApprovedAthletes()
+      .then(setAthletes)
+      .catch((err) => setError(err.message))
+  }
+
+  function loadWeekAssignments() {
     setLoading(true)
-    Promise.all([fetchApprovedAthletes(), fetchAssignmentsForCoach()])
-      .then(([a, w]) => {
-        setAthletes(a)
-        setAssignments(w)
-      })
+    const startDate = toDateStr(listWeekStart)
+    const endDate = toDateStr(addDays(listWeekStart, 6))
+    fetchAssignmentsForCoach({ startDate, endDate })
+      .then(setAssignments)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [])
+  useEffect(loadAthletes, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadWeekAssignments, [listWeekStart])
+
+  const assignmentsByDate = useMemo(() => {
+    const map = new Map()
+    for (const a of assignments) {
+      if (!map.has(a.date)) map.set(a.date, [])
+      map.get(a.date).push(a)
+    }
+    return map
+  }, [assignments])
+
+  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => toDateStr(addDays(listWeekStart, i))), [listWeekStart])
 
   function toggleAthlete(id) {
     setSelectedAthleteIds((prev) => {
@@ -103,7 +128,16 @@ export default function CoachAssignmentsPage() {
       showToast(message)
       clearAthleteSelection()
       setFormKey((k) => k + 1)
-      load()
+
+      // If the assignment's date falls in a different week than the one
+      // currently shown below, jump there — otherwise "create assignment
+      // for next Friday" would silently show no change in the list.
+      const createdWeekStart = startOfWeek(parseDateStr(date))
+      if (toDateStr(createdWeekStart) !== toDateStr(listWeekStart)) {
+        setListWeekStart(createdWeekStart)
+      } else {
+        loadWeekAssignments()
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -114,7 +148,10 @@ export default function CoachAssignmentsPage() {
   return (
     <div className="page">
       <div className="page-header-row">
-        <h1>Assigned workouts</h1>
+        <h1>
+          <IconClipboardList className="page-title-icon" size={26} aria-hidden="true" />
+          Assigned workouts
+        </h1>
       </div>
 
       {canCreate && view !== 'splits' && (
@@ -193,29 +230,46 @@ export default function CoachAssignmentsPage() {
             </div>
           )}
 
-          <h2 className="events-section-heading">All assignments</h2>
+          <h2 className="events-section-heading">Assigned this week</h2>
+          <div className="calendar-nav">
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => setListWeekStart((d) => addDays(d, -7))}
+              aria-label="Previous week"
+            >
+              ← Prev week
+            </button>
+            <div className="calendar-nav-title">
+              <span>{formatWeekRangeLabel(listWeekStart)}</span>
+              <button type="button" className="link-button" onClick={() => setListWeekStart(startOfWeek(new Date()))}>
+                This week
+              </button>
+            </div>
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => setListWeekStart((d) => addDays(d, 7))}
+              aria-label="Next week"
+            >
+              Next week →
+            </button>
+          </div>
+
           {loading && (
             <div className="loading-state">
               <span className="spinner" /> Loading…
             </div>
           )}
           {!loading && assignments.length === 0 && (
-            <p className="empty-state">No assignments yet — create one above to get started.</p>
+            <p className="empty-state">No assignments this week — create one above to get started.</p>
           )}
           <div className="assignments-list">
-            {assignments.map((a) => (
-              <div key={a.id} className="assignment-row">
-                <div>
-                  <span className={`type-badge type-${a.type}`}>{workoutTypeLabel(a.type)}</span>
-                  <span className="assignment-athlete">{a.profiles?.name || 'Unknown athlete'}</span>
-                  <span className="workout-date">{formatDate(a.date)}</span>
-                </div>
-                <div className="assignment-target-summary">
-                  <span>{summarizeAssignment(a)}</span>
-                </div>
-                <span className={`status-badge status-${a.status}`}>{a.status}</span>
-              </div>
-            ))}
+            {weekDates
+              .filter((d) => assignmentsByDate.has(d))
+              .map((d) => (
+                <AssignmentDayGroup key={d} dateStr={d} assignments={assignmentsByDate.get(d)} />
+              ))}
           </div>
         </>
       )}

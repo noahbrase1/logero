@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { IconActivity } from '@tabler/icons-react'
 import { fetchApprovedAthletes, fetchRecentTeamFeed, fetchTeamWorkoutsByDate, fetchWorkouts } from '../lib/workouts'
 import { fetchEvents } from '../lib/events'
 import WorkoutListItem from '../components/WorkoutListItem'
+import Fab from '../components/Fab'
 import QuickNoteForm from '../components/QuickNoteForm'
 import MetricCardRow from '../components/MetricCardRow'
 import WeeklyMileageSection from '../components/WeeklyMileageSection'
@@ -145,13 +147,19 @@ export default function TeamFeedPage() {
     <div className="page">
       <div className="page-header-row">
         <div>
-          <h1>Team Logs</h1>
+          <h1>
+            <IconActivity className="page-title-icon" size={26} aria-hidden="true" />
+            Team Logs
+          </h1>
           <p className="page-subtitle">Browse workouts logged across the team, by date or by athlete.</p>
         </div>
         {canPostNote && !noteFormOpen && (
-          <button type="button" onClick={() => setNoteFormOpen(true)}>
-            + Quick note
-          </button>
+          <>
+            <button type="button" className="page-header-inline-action" onClick={() => setNoteFormOpen(true)}>
+              + Quick note
+            </button>
+            <Fab label="Quick note" onClick={() => setNoteFormOpen(true)} />
+          </>
         )}
       </div>
 

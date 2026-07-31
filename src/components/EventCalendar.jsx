@@ -9,6 +9,7 @@ import {
   workoutTypeLabel,
 } from '../utils/format'
 import { toDateStr } from '../utils/week'
+import CalendarLegend from './CalendarLegend'
 import EventCard from './EventCard'
 import WorkoutCard from './WorkoutCard'
 import AssignedWorkoutSummary from './AssignedWorkoutSummary'
@@ -270,6 +271,8 @@ export default function EventCalendar({
         </button>
       </div>
 
+      <CalendarLegend />
+
       <div className="calendar-grid">
         {WEEKDAY_LABELS.map((label) => (
           <div className="calendar-weekday" key={label}>
@@ -319,7 +322,9 @@ export default function EventCalendar({
               )}
               {(hasEvents || hasAssignment) && (
                 <span className="calendar-cell-indicators" aria-hidden="true">
-                  {hasEvents && <span className="calendar-cell-dot" />}
+                  {dayEvents.map((e) => (
+                    <span key={e.id} className={`calendar-cell-event-dot cat-${e.category || 'other'}`} />
+                  ))}
                   {dayAssignments.map((a) => (
                     <span
                       key={a.id}

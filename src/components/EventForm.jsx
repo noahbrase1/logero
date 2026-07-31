@@ -1,3 +1,5 @@
+import { EVENT_CATEGORY_LABELS } from '../utils/format'
+
 // Shared name/date/time/location/notes fields for both creating an event
 // (EventsPage's top form) and editing one inline (EventCard, in place of
 // the card's normal display) — same fields, same shape, just rendered in
@@ -24,6 +26,19 @@ export default function EventForm({ form, setForm, onSubmit, onCancel, saving, e
             onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
             required
           />
+        </label>
+        <label>
+          Category
+          <select
+            value={form.category}
+            onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+          >
+            {Object.entries(EVENT_CATEGORY_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
       <div className="form-row">

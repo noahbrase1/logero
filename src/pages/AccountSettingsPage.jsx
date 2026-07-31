@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { IconUserCircle } from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
 import { updateOwnEmail, updateOwnName, updateOwnPassword } from '../lib/account'
 import { getNotificationPreferences, isPushSupported, setNotificationPreference } from '../lib/pushNotifications'
@@ -134,7 +135,10 @@ export default function AccountSettingsPage() {
 
   return (
     <div className="page">
-      <h1>Account settings</h1>
+      <h1>
+        <IconUserCircle className="page-title-icon" size={26} aria-hidden="true" />
+        Account settings
+      </h1>
 
       <div className="theme-settings">
         <h2 className="events-section-heading">Display name</h2>

@@ -1,59 +1,92 @@
-import { useEffect, useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
-import { IconMenu2, IconX } from '@tabler/icons-react'
+import { NavLink } from 'react-router-dom'
+import {
+  IconActivity,
+  IconCalendarEvent,
+  IconClipboardList,
+  IconMessageCircle,
+  IconPalette,
+  IconUserCircle,
+  IconUsers,
+} from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
 import { APP_NAME } from '../config'
 
+// Desktop-only top nav now (see index.css's 860px breakpoint) — the mobile
+// hamburger/drawer this used to fall back to below that width is gone,
+// replaced by BottomNav.jsx + Fab.jsx, mounted alongside this in App.jsx.
+// Both this and BottomNav are always rendered; CSS alone decides which is
+// visible at a given width, the same "always render both" technique the
+// old hamburger toggle used, just split across two components now instead
+// of one drawer.
 export default function NavBar() {
   const { profile, signOut } = useAuth()
   const isCoach = profile?.role === 'coach'
   const isAdmin = profile?.role === 'admin'
-  const [menuOpen, setMenuOpen] = useState(false)
-  const location = useLocation()
-
-  // Close the mobile drawer any time navigation happens, so tapping a link
-  // doesn't leave it hanging open behind the newly-rendered page.
-  useEffect(() => {
-    setMenuOpen(false)
-  }, [location])
-
-  // Lock page scroll behind the drawer while it's open — without this the
-  // page content scrolls along with the overlay on a long mobile page.
-  useEffect(() => {
-    document.body.style.overflow = menuOpen ? 'hidden' : ''
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [menuOpen])
 
   const links = isCoach ? (
     <>
       <NavLink to="/" end>
+        <IconActivity size={18} stroke={1.75} />
         Team Logs
       </NavLink>
-      <NavLink to="/roster">Roster</NavLink>
-      <NavLink to="/messages">Messages</NavLink>
-      <NavLink to="/events">Calendar</NavLink>
-      <NavLink to="/assignments">Assignments</NavLink>
-      <NavLink to="/settings">Team Theme</NavLink>
+      <NavLink to="/roster">
+        <IconUsers size={18} stroke={1.75} />
+        Roster
+      </NavLink>
+      <NavLink to="/messages">
+        <IconMessageCircle size={18} stroke={1.75} />
+        Messages
+      </NavLink>
+      <NavLink to="/events">
+        <IconCalendarEvent size={18} stroke={1.75} />
+        Calendar
+      </NavLink>
+      <NavLink to="/assignments">
+        <IconClipboardList size={18} stroke={1.75} />
+        Assignments
+      </NavLink>
+      <NavLink to="/settings">
+        <IconPalette size={18} stroke={1.75} />
+        Team Theme
+      </NavLink>
     </>
   ) : isAdmin ? (
     <>
       <NavLink to="/" end>
+        <IconActivity size={18} stroke={1.75} />
         Team Logs
       </NavLink>
-      <NavLink to="/roster">Roster</NavLink>
-      <NavLink to="/messages">Messages</NavLink>
-      <NavLink to="/events">Calendar</NavLink>
-      <NavLink to="/assignments">Assignments</NavLink>
-      <NavLink to="/settings">Team Theme</NavLink>
+      <NavLink to="/roster">
+        <IconUsers size={18} stroke={1.75} />
+        Roster
+      </NavLink>
+      <NavLink to="/messages">
+        <IconMessageCircle size={18} stroke={1.75} />
+        Messages
+      </NavLink>
+      <NavLink to="/events">
+        <IconCalendarEvent size={18} stroke={1.75} />
+        Calendar
+      </NavLink>
+      <NavLink to="/assignments">
+        <IconClipboardList size={18} stroke={1.75} />
+        Assignments
+      </NavLink>
+      <NavLink to="/settings">
+        <IconPalette size={18} stroke={1.75} />
+        Team Theme
+      </NavLink>
     </>
   ) : (
     <>
       <NavLink to="/" end>
+        <IconCalendarEvent size={18} stroke={1.75} />
         Calendar
       </NavLink>
-      <NavLink to="/messages">Messages</NavLink>
+      <NavLink to="/messages">
+        <IconMessageCircle size={18} stroke={1.75} />
+        Messages
+      </NavLink>
     </>
   )
 
@@ -66,7 +99,10 @@ export default function NavBar() {
 
       <nav className="navbar-links">
         {links}
-        <NavLink to="/account">Account</NavLink>
+        <NavLink to="/account">
+          <IconUserCircle size={18} stroke={1.75} />
+          Account
+        </NavLink>
       </nav>
       <div className="navbar-user">
         <span>{profile?.name || 'You'}</span>
@@ -74,36 +110,6 @@ export default function NavBar() {
           Log out
         </button>
       </div>
-
-      <button
-        type="button"
-        className="navbar-menu-toggle"
-        onClick={() => setMenuOpen((v) => !v)}
-        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-        aria-expanded={menuOpen}
-      >
-        {menuOpen ? <IconX size={24} /> : <IconMenu2 size={24} />}
-      </button>
-
-      {menuOpen && (
-        <button
-          type="button"
-          className="navbar-drawer-overlay"
-          onClick={() => setMenuOpen(false)}
-          aria-label="Close menu"
-        />
-      )}
-
-      <nav className={`navbar-drawer ${menuOpen ? 'open' : ''}`}>
-        {links}
-        <NavLink to="/account">Account</NavLink>
-        <div className="navbar-drawer-user">
-          <span>{profile?.name || 'You'}</span>
-          <button type="button" className="link-button" onClick={signOut}>
-            Log out
-          </button>
-        </div>
-      </nav>
     </header>
   )
 }

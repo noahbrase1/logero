@@ -6,7 +6,7 @@ export async function fetchEvents() {
   return data
 }
 
-export async function createEvent({ name, date, startTime, endTime, location, notes, createdBy }) {
+export async function createEvent({ name, date, startTime, endTime, location, notes, category, createdBy }) {
   const { data, error } = await supabase
     .from('events')
     .insert({
@@ -16,6 +16,7 @@ export async function createEvent({ name, date, startTime, endTime, location, no
       end_time: endTime || null,
       location,
       notes,
+      category: category || 'other',
       created_by: createdBy,
     })
     .select()
@@ -24,10 +25,18 @@ export async function createEvent({ name, date, startTime, endTime, location, no
   return data
 }
 
-export async function updateEvent(id, { name, date, startTime, endTime, location, notes }) {
+export async function updateEvent(id, { name, date, startTime, endTime, location, notes, category }) {
   const { data, error } = await supabase
     .from('events')
-    .update({ name, date, start_time: startTime || null, end_time: endTime || null, location, notes })
+    .update({
+      name,
+      date,
+      start_time: startTime || null,
+      end_time: endTime || null,
+      location,
+      notes,
+      category: category || 'other',
+    })
     .eq('id', id)
     .select()
     .single()
