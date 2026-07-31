@@ -4,16 +4,16 @@ import { useAuth } from '../context/AuthContext'
 import { createAssignment, fetchAssignmentsForCoach } from '../lib/assignments'
 import { fetchEvents } from '../lib/events'
 import { fetchApprovedAthletes, fetchRecentTeamFeed, fetchTeamWorkoutsByDate, fetchWorkouts } from '../lib/workouts'
-import { addDays, formatWeekRangeLabel, parseDateStr, startOfWeek, toDateStr } from '../utils/week'
+import { toDateStr } from '../utils/week'
 import { formatDateHeading } from '../utils/format'
 import { onAppResume } from '../utils/appResume'
 import { withTimeout } from '../utils/withTimeout'
-import AssignmentDayGroup from '../components/AssignmentDayGroup'
 import AssignmentForm from '../components/AssignmentForm'
 import AssignmentGrid from '../components/AssignmentGrid'
 import ExportDayModal from '../components/ExportDayModal'
 import Fab from '../components/Fab'
 import MetricCardRow from '../components/MetricCardRow'
+import Modal from '../components/Modal'
 import QuickNoteForm from '../components/QuickNoteForm'
 import { SkeletonList } from '../components/Skeleton'
 import SplitRecorder from '../components/SplitRecorder'
@@ -28,15 +28,19 @@ export default function CoachAssignmentsPage() {
   const todayStr = useMemo(() => toDateStr(new Date()), [])
 
   const [athletes, setAthletes] = useState([])
-  const [assignments, setAssignments] = useState([])
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [view, setView] = useState(canCreate ? 'grid' : 'list')
+
+  // null (closed) | 'choose' | 'workout' | 'note' — the + button's entry
+  // point for creating something, since a coach can only ever do one of
+  // two things here (assign a workout, or post a quick note — never a
+  // full logged workout on an athlete's behalf, see QuickNoteForm/
+  // AssignmentForm's own role restrictions).
+  const [createModal, setCreateModal] = useState(null)
 
   const [selectedAthleteIds, setSelectedAthleteIds] = useState(new Set())
   const [date, setDate] = useState(() => toDateStr(new Date()))
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState('')
   const [formKey, setFormKey] = useState(0) // bump to remount AssignmentForm, clearing its internal state after a successful submit
 
   const [exportDate, setExportDate] = useState(() => toDateStr(new Date()))
@@ -44,25 +48,15 @@ export default function CoachAssignmentsPage() {
   const [exportLoading, setExportLoading] = useState(false)
   const [exportError, setExportError] = useState('')
 
-  // List view's own rolling week window — same pattern AssignmentGrid uses
-  // for its week nav, replacing what used to be an unbounded
-  // fetchAssignmentsForCoach() covering every assignment ever (which would
-  // otherwise render every day-card at once now that the list is grouped).
-  const [listWeekStart, setListWeekStart] = useState(() => startOfWeek(new Date()))
-
-  // --- Team Logs, merged into this page's List tab (previously its own
+  // --- Team Logs, merged into this page's Logs tab (previously its own
   // standalone page/nav destination) — browsing actually-logged workouts,
   // by date or by athlete, plus quick notes and week-at-a-glance metrics.
-  // Kept as its own self-contained block of state below rather than
-  // interleaved with the assignment state above, since the two features
-  // are deliberately just stacked together on one tab, not merged row by
-  // row (an athlete's assigned workout and their logged workout for the
-  // same day are still shown in two separate sections here).
+  // Now the Logs tab's only content — the assigned-workouts list that used
+  // to sit above it was dropped since Grid view already covers that.
   const [recentWorkouts, setRecentWorkouts] = useState([])
   const [events, setEvents] = useState([])
   const [logsLoading, setLogsLoading] = useState(true)
   const [logsError, setLogsError] = useState('')
-  const [noteFormOpen, setNoteFormOpen] = useState(false)
 
   const [filterMode, setFilterMode] = useState('date') // 'date' | 'athlete'
   const [selectedDate, setSelectedDate] = useState(todayStr)
@@ -78,19 +72,7 @@ export default function CoachAssignmentsPage() {
       .catch((err) => setError(err.message))
   }
 
-  function loadWeekAssignments() {
-    setLoading(true)
-    const startDate = toDateStr(listWeekStart)
-    const endDate = toDateStr(addDays(listWeekStart, 6))
-    fetchAssignmentsForCoach({ startDate, endDate })
-      .then(setAssignments)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }
-
   useEffect(loadAthletes, [])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(loadWeekAssignments, [listWeekStart])
 
   // Top-60 recent feed — only powers the metrics row; it's never what's
   // rendered as the main logs list itself. Wrapped in withTimeout so a dead
@@ -168,7 +150,7 @@ export default function CoachAssignmentsPage() {
   }
 
   function handleNotePosted() {
-    setNoteFormOpen(false)
+    setCreateModal(null)
     loadLogs()
     refreshFeed()
     showToast('Note posted!')
@@ -187,17 +169,6 @@ export default function CoachAssignmentsPage() {
       : selectedDate === todayStr
         ? 'No workouts logged yet today.'
         : 'No workouts logged on this date.'
-
-  const assignmentsByDate = useMemo(() => {
-    const map = new Map()
-    for (const a of assignments) {
-      if (!map.has(a.date)) map.set(a.date, [])
-      map.get(a.date).push(a)
-    }
-    return map
-  }, [assignments])
-
-  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => toDateStr(addDays(listWeekStart, i))), [listWeekStart])
 
   function toggleAthlete(id) {
     setSelectedAthleteIds((prev) => {
@@ -238,7 +209,6 @@ export default function CoachAssignmentsPage() {
 
   async function handleSubmit(payload) {
     setError('')
-    setSuccess('')
 
     const targetAthleteIds = Array.from(selectedAthleteIds)
     if (targetAthleteIds.length === 0) {
@@ -254,20 +224,10 @@ export default function CoachAssignmentsPage() {
 
       const message =
         targetAthleteIds.length > 1 ? `Assigned to ${targetAthleteIds.length} athletes.` : 'Assignment created.'
-      setSuccess(message)
       showToast(message)
       clearAthleteSelection()
       setFormKey((k) => k + 1)
-
-      // If the assignment's date falls in a different week than the one
-      // currently shown below, jump there — otherwise "create assignment
-      // for next Friday" would silently show no change in the list.
-      const createdWeekStart = startOfWeek(parseDateStr(date))
-      if (toDateStr(createdWeekStart) !== toDateStr(listWeekStart)) {
-        setListWeekStart(createdWeekStart)
-      } else {
-        loadWeekAssignments()
-      }
+      setCreateModal(null)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -285,12 +245,12 @@ export default function CoachAssignmentsPage() {
           </h1>
           <p className="page-subtitle">Assign, record, and browse everything your team logs.</p>
         </div>
-        {canCreate && view === 'list' && !noteFormOpen && (
+        {canCreate && (
           <>
-            <button type="button" className="page-header-inline-action" onClick={() => setNoteFormOpen(true)}>
-              + Quick note
+            <button type="button" className="page-header-inline-action" onClick={() => setCreateModal('choose')}>
+              + New
             </button>
-            <Fab label="Quick note" onClick={() => setNoteFormOpen(true)} />
+            <Fab label="Add a workout or note" onClick={() => setCreateModal('choose')} />
           </>
         )}
       </div>
@@ -330,101 +290,7 @@ export default function CoachAssignmentsPage() {
         <AssignmentGrid athletes={athletes} coachId={user.id} />
       ) : (
         <>
-          {canCreate && (
-            <div className="workout-form">
-              <fieldset className="splits-fieldset">
-                <legend>Athletes</legend>
-                <div className="athlete-checklist-actions">
-                  <button type="button" className="link-button" onClick={selectAllAthletes}>
-                    Select all
-                  </button>
-                  <button type="button" className="link-button" onClick={clearAthleteSelection}>
-                    Clear
-                  </button>
-                </div>
-                {athletes.length === 0 && <p className="empty-state">No approved athletes yet.</p>}
-                <div className="athlete-checklist">
-                  {athletes.map((a) => (
-                    <label key={a.id} className="athlete-checklist-item">
-                      <input type="checkbox" checked={selectedAthleteIds.has(a.id)} onChange={() => toggleAthlete(a.id)} />
-                      {a.name || 'Unnamed athlete'}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-
-              <div className="form-row">
-                <label>
-                  Date
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-                </label>
-              </div>
-
-              <AssignmentForm
-                key={formKey}
-                onSubmit={handleSubmit}
-                submitLabel="Create assignment"
-                saving={saving}
-                error={error}
-              />
-              {success && <p className="form-info">{success}</p>}
-            </div>
-          )}
-
-          <h2 className="events-section-heading">Assigned this week</h2>
-          <div className="calendar-nav">
-            <button
-              type="button"
-              className="link-button"
-              onClick={() => setListWeekStart((d) => addDays(d, -7))}
-              aria-label="Previous week"
-            >
-              ← Prev week
-            </button>
-            <div className="calendar-nav-title">
-              <span>{formatWeekRangeLabel(listWeekStart)}</span>
-              <button type="button" className="link-button" onClick={() => setListWeekStart(startOfWeek(new Date()))}>
-                This week
-              </button>
-            </div>
-            <button
-              type="button"
-              className="link-button"
-              onClick={() => setListWeekStart((d) => addDays(d, 7))}
-              aria-label="Next week"
-            >
-              Next week →
-            </button>
-          </div>
-
-          {loading && (
-            <div className="loading-state">
-              <span className="spinner" /> Loading…
-            </div>
-          )}
-          {!loading && assignments.length === 0 && (
-            <p className="empty-state">No assignments this week — create one above to get started.</p>
-          )}
-          <div className="assignments-list">
-            {weekDates
-              .filter((d) => assignmentsByDate.has(d))
-              .map((d) => (
-                <AssignmentDayGroup key={d} dateStr={d} assignments={assignmentsByDate.get(d)} />
-              ))}
-          </div>
-
-          <h2 className="events-section-heading">Team logs</h2>
-
           {!logsLoading && !logsError && recentWorkouts.length > 0 && <MetricCardRow metrics={metrics} />}
-
-          {canCreate && noteFormOpen && (
-            <div className="quick-note-form-wrap">
-              <QuickNoteForm onPosted={handleNotePosted} />
-              <button type="button" className="link-button" onClick={() => setNoteFormOpen(false)}>
-                Cancel
-              </button>
-            </div>
-          )}
 
           {logsLoading && <SkeletonList count={4} />}
           {logsError && (
@@ -486,6 +352,74 @@ export default function CoachAssignmentsPage() {
             </>
           )}
         </>
+      )}
+
+      {createModal && (
+        <Modal onClose={() => setCreateModal(null)} labelledBy="create-modal-heading">
+          {createModal === 'choose' && (
+            <>
+              <h2 id="create-modal-heading" className="create-modal-heading">
+                Add to Workouts
+              </h2>
+              <div className="create-choice-list">
+                <button type="button" onClick={() => setCreateModal('workout')}>
+                  New Workout
+                </button>
+                <button type="button" className="secondary" onClick={() => setCreateModal('note')}>
+                  Quick Note
+                </button>
+              </div>
+            </>
+          )}
+
+          {createModal === 'workout' && (
+            <div className="create-modal-workout-form">
+              <h2 id="create-modal-heading">New workout</h2>
+              <fieldset className="splits-fieldset">
+                <legend>Athletes</legend>
+                <div className="athlete-checklist-actions">
+                  <button type="button" className="link-button" onClick={selectAllAthletes}>
+                    Select all
+                  </button>
+                  <button type="button" className="link-button" onClick={clearAthleteSelection}>
+                    Clear
+                  </button>
+                </div>
+                {athletes.length === 0 && <p className="empty-state">No approved athletes yet.</p>}
+                <div className="athlete-checklist">
+                  {athletes.map((a) => (
+                    <label key={a.id} className="athlete-checklist-item">
+                      <input type="checkbox" checked={selectedAthleteIds.has(a.id)} onChange={() => toggleAthlete(a.id)} />
+                      {a.name || 'Unnamed athlete'}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <div className="form-row">
+                <label>
+                  Date
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+                </label>
+              </div>
+
+              <AssignmentForm
+                key={formKey}
+                onSubmit={handleSubmit}
+                submitLabel="Create assignment"
+                saving={saving}
+                error={error}
+              />
+            </div>
+          )}
+
+          {createModal === 'note' && (
+            <>
+              <h2 id="create-modal-heading">Quick note</h2>
+              <QuickNoteForm onPosted={handleNotePosted} />
+            </>
+          )}
+        </Modal>
       )}
 
       {exportAssignments && (

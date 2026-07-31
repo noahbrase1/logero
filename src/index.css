@@ -3485,6 +3485,29 @@ button.link-button.danger {
   padding-right: 2rem;
 }
 
+/* --- Add-to-Workouts modal (CoachAssignmentsPage's + button) --- */
+
+.create-modal-heading {
+  margin-top: 0;
+  padding-right: 2rem;
+}
+
+.create-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+/* No background/border-radius/padding of its own — the Modal panel
+   already supplies that surface, unlike .workout-form's own inline usage
+   elsewhere on the page. */
+.create-modal-workout-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
 .cell-modal-close {
   position: absolute;
   top: var(--space-4);
