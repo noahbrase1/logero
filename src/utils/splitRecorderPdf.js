@@ -12,7 +12,7 @@ import { formatDate } from './format'
 // usually by shared workout in the first place — an athlete with fewer
 // just shows blank cells past their own count.
 export function downloadSplitRecorderPdf(dateStr, sections) {
-  const doc = new jsPDF()
+  const doc = new jsPDF({ orientation: 'landscape' })
 
   doc.setFontSize(18)
   doc.text('Split Recorder', 14, 18)
@@ -23,7 +23,7 @@ export function downloadSplitRecorderPdf(dateStr, sections) {
 
   let y = 34
   sections.forEach((section) => {
-    if (y > 260) {
+    if (y > 175) {
       doc.addPage()
       y = 20
     }
