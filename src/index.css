@@ -2265,63 +2265,6 @@ button.link-button.danger {
   margin-bottom: var(--space-8);
 }
 
-/* --- Assignments List view: one shadow-elevated card per day
-   (AssignmentDayGroup), each holding one row per athlete's assignment.
-   Replaces the old flat, ungrouped .assignment-row list. --- */
-
-.assignment-day-group {
-  background: var(--surface);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  padding: var(--space-5);
-}
-
-.assignment-day-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: var(--space-4);
-}
-
-.assignment-day-date {
-  font-weight: 700;
-  font-size: var(--font-size-md);
-  color: var(--text-h);
-}
-
-.assignment-day-count {
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-muted);
-}
-
-.assignment-day-rows {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.assignment-athlete-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  border-left: 3px solid transparent;
-}
-
-.assignment-athlete-row:hover {
-  background: var(--bg);
-}
-
-.assignment-athlete-row .assignment-target-summary {
-  flex: 1;
-  min-width: 160px;
-}
-
 .assignment-row {
   display: flex;
   justify-content: space-between;
