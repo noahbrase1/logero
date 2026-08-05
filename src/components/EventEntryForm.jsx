@@ -26,6 +26,7 @@ function teamsFromEntry(entry) {
 export default function EventEntryForm({ athletes, initialEntry, onSubmit, onCancel, saving }) {
   const [eventName, setEventName] = useState(initialEntry?.event_name || '')
   const [scheduledTime, setScheduledTime] = useState(initialEntry?.scheduled_time?.slice(0, 5) || '')
+  const [splitCount, setSplitCount] = useState(initialEntry?.split_count ? String(initialEntry.split_count) : '')
   const [teams, setTeams] = useState(() => teamsFromEntry(initialEntry))
   const [error, setError] = useState('')
 
@@ -80,6 +81,7 @@ export default function EventEntryForm({ athletes, initialEntry, onSubmit, onCan
     onSubmit({
       eventName: eventName.trim(),
       scheduledTime: scheduledTime || null,
+      splitCount: splitCount ? Number(splitCount) : null,
       teams: teams.map((t) => ({ label: t.label.trim(), athleteIds: Array.from(t.selectedIds) })),
     })
   }
@@ -101,7 +103,24 @@ export default function EventEntryForm({ athletes, initialEntry, onSubmit, onCan
           Scheduled time
           <input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} />
         </label>
+        <label>
+          Splits (optional)
+          <input
+            type="number"
+            min="1"
+            step="1"
+            placeholder="e.g. 4"
+            value={splitCount}
+            onChange={(e) => setSplitCount(e.target.value)}
+          />
+        </label>
       </div>
+      {splitCount && (
+        <p className="result-hint">
+          Every athlete's Record Results splits will default to about {splitCount} even intervals of this race's
+          distance (e.g. 1500m ÷ 4 → 400m×3 + 300m) — still freely editable per athlete afterward.
+        </p>
+      )}
 
       <fieldset className="splits-fieldset">
         <legend>Athletes</legend>

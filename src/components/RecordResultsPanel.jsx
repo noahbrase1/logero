@@ -1,0 +1,428 @@
+import { Fragment, useState } from 'react'
+import TimeTextInput from './TimeTextInput'
+import { emptyRepTime, makeEmptySegment } from './SegmentEditor'
+import { groupAthletesByTeam, looksLikeRelay } from '../utils/lineup'
+import {
+  computeEvenSplitSegments,
+  parseEventDistance,
+  recordIndividualResult,
+  saveTeamResult,
+  singleSegmentFromTime,
+} from '../lib/meetResults'
+import { formatDistanceValue, formatTime, unitAbbrev } from '../utils/format'
+
+function resultToTime(row) {
+  return { hours: row?.result_hours || 0, minutes: row?.result_minutes || 0, seconds: row?.result_seconds || 0 }
+}
+
+function hasTime({ hours, minutes, seconds } = {}) {
+  return (hours || 0) > 0 || (minutes || 0) > 0 || (seconds || 0) > 0
+}
+
+function findTeamResult(entry, label) {
+  return (entry.event_entry_results || []).find((r) => (r.team_label || null) === (label || null))
+}
+
+// Rebuilds a segment editor's initial state from an athlete's previously
+// saved result (event_entry_athletes.workouts.running_segments, embedded by
+// fetchEventEntries' ENTRY_SELECT). An athlete with nothing recorded yet
+// falls back to the entry's own auto-split template — computeEvenSplitSegments()
+// dividing the entry's parsed distance into entry.split_count-ish intervals
+// (e.g. 1500m ÷ 4 -> 400m×3 + 300m, set once on the lineup entry itself so
+// every athlete in the race starts from the same splits) — or, when the
+// entry has no split_count set, one plain segment with the whole distance,
+// so a coach who just wants a finish time only ever sees one column. Either
+// way it's just a starting point: freely editable per athlete afterward via
+// the grid's Distance/Unit/Reps columns aren't exposed here — the grid only
+// edits times, not shape, so the shape comes from split_count/existing data.
+function initialSegments(ea, entry) {
+  const segs = ea.workouts?.running_segments
+  if (segs && segs.length > 0) {
+    return [...segs]
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((s) => ({
+        key: s.id,
+        label: s.label || '',
+        distanceValue: s.distance_value,
+        distanceUnit: s.distance_unit,
+        reps: s.reps,
+        repTimes: (s.running_segment_reps || [])
+          .slice()
+          .sort((a, b) => a.rep_number - b.rep_number)
+          .map((r) => ({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds })),
+      }))
+  }
+
+  const distance = parseEventDistance(entry.event_name) || { value: 1, unit: 'meters' }
+
+  const template = entry.split_count ? computeEvenSplitSegments(distance.value, distance.unit, entry.split_count) : null
+  if (template) {
+    return template.map((t) => ({
+      key: crypto.randomUUID(),
+      label: '',
+      distanceValue: t.distanceValue,
+      distanceUnit: t.distanceUnit,
+      reps: t.reps,
+      repTimes: Array.from({ length: t.reps }, () => emptyRepTime()),
+    }))
+  }
+
+  const seg = makeEmptySegment({ distanceUnit: distance.unit })
+  return [{ ...seg, distanceValue: distance.value }]
+}
+
+// Flattens a segments array into one grid column per rep — a segment with
+// `reps: 3` becomes 3 columns, matching the same flattening SplitRecorder
+// already does for its own grid (see flattenSegments() there).
+function flattenColumns(segments) {
+  const cols = []
+  segments.forEach((seg, segIndex) => {
+    const repCount = seg.repTimes?.length || Number(seg.reps) || 1
+    for (let repIndex = 0; repIndex < repCount; repIndex++) {
+      cols.push({ segIndex, repIndex, distanceValue: seg.distanceValue, distanceUnit: seg.distanceUnit })
+    }
+  })
+  return cols
+}
+
+function updateSegmentRepTime(segments, segIndex, repIndex, value) {
+  return segments.map((seg, si) =>
+    si !== segIndex ? seg : { ...seg, repTimes: seg.repTimes.map((rt, ri) => (ri === repIndex ? value : rt)) }
+  )
+}
+
+function formatColumnLabel(col) {
+  if (!col) return ''
+  return `${formatDistanceValue(col.distanceValue, col.distanceUnit)}${unitAbbrev(col.distanceUnit)} (${col.repIndex + 1})`
+}
+
+// A shared grid — one column per split, one row per athlete — for a group
+// of athletes all running the same individual race, so a coach fills times
+// across everyone at once instead of scrolling through one full segment
+// editor per athlete. Unlike SplitRecorder's own grid (which needs a
+// separate header per athlete, since different athletes can have entirely
+// different practice assignments the same day — see SplitRecorder.jsx), a
+// Record Results group is always the same race for everyone in it, so one
+// shared header row is enough here; an athlete with a shorter or
+// differently-shaped saved result than the rest of the group (e.g. an old
+// result recorded before split_count existed) just gets non-editable "N/A"
+// cells for whatever columns they don't have, mirroring SplitRecorder's own
+// convention for an athlete with fewer columns than the grid's widest row.
+function ResultSegmentsGrid({ entry, athletes, segmentDrafts, updateSegmentDraft, draftKey, resultsVersion, onClear }) {
+  const athleteData = athletes.map((ea) => {
+    const sKey = draftKey(entry.id, 'segments', ea.athlete_id)
+    const segments = segmentDrafts[sKey] ?? initialSegments(ea, entry)
+    return { ea, sKey, segments, columns: flattenColumns(segments) }
+  })
+
+  const maxColumns = Math.max(0, ...athleteData.map((a) => a.columns.length))
+  const headerColumns = Array.from({ length: maxColumns }, (_, i) => {
+    const withCol = athleteData.find((a) => a.columns[i])
+    return withCol ? withCol.columns[i] : null
+  })
+
+  return (
+    <div className="result-grid-wrap">
+      <div
+        className="result-grid"
+        style={{ gridTemplateColumns: `minmax(140px, auto) repeat(${maxColumns}, minmax(90px, 1fr))` }}
+      >
+        <div className="result-grid-corner">Athlete</div>
+        {headerColumns.map((col, i) => (
+          <div
+            key={i}
+            className={`result-grid-header-cell ${
+              i > 0 && headerColumns[i - 1] && col && col.segIndex !== headerColumns[i - 1].segIndex
+                ? 'result-grid-segment-start'
+                : ''
+            }`}
+          >
+            {formatColumnLabel(col)}
+          </div>
+        ))}
+
+        {athleteData.map(({ ea, sKey, segments, columns }) => {
+          const saved = resultToTime(ea)
+          return (
+            <Fragment key={ea.athlete_id}>
+              <div className="result-grid-name-cell">
+                <span>{ea.profiles?.name || 'Unnamed'}</span>
+                {hasTime(saved) && (
+                  <button type="button" className="link-button danger" onClick={() => onClear(entry, ea.athlete_id)}>
+                    Clear
+                  </button>
+                )}
+              </div>
+              {Array.from({ length: maxColumns }, (_, i) => {
+                const col = columns[i]
+                if (!col) {
+                  return (
+                    <div key={i} className="result-grid-na-cell">
+                      N/A
+                    </div>
+                  )
+                }
+                const segStart = i > 0 && columns[i - 1] && col.segIndex !== columns[i - 1].segIndex
+                return (
+                  <div key={i} className={`result-grid-value-cell ${segStart ? 'result-grid-segment-start' : ''}`}>
+                    <TimeTextInput
+                      key={`${sKey}-${i}-${resultsVersion}`}
+                      value={segments[col.segIndex].repTimes[col.repIndex]}
+                      onChange={(v) =>
+                        updateSegmentDraft(sKey, updateSegmentRepTime(segments, col.segIndex, col.repIndex, v))
+                      }
+                      ariaLabel={`${ea.profiles?.name || 'athlete'} ${formatColumnLabel(col)}`}
+                    />
+                  </div>
+                )
+              })}
+            </Fragment>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Coach-only race-day results entry for one event's lineup, a sibling to
+// (never sharing code or tables with) the practice-day Split Recorder — see
+// supabase/meet_results_schema.sql. Each lineup entry saves independently
+// via its own "Save results" button, so a coach can fill results in
+// whatever order events actually finish and leave the rest for later.
+//
+// Individual results (a whole group of athletes running the same race)
+// share one grid (ResultSegmentsGrid above) rather than a full segment
+// editor per athlete — a race is rarely one flat time, splits are usually
+// taken at intervals (every 400m, every 200m, an irregular tail segment),
+// and a coach filling in a whole heat at once wants that laid out like the
+// rest of this app's split-entry grids, not one editor at a time. A relay's
+// team result and its optional per-athlete leg splits stay a single
+// TimeTextInput each, since those are already atomic.
+//
+// `resultsVersion` forces every input to remount after a reload —
+// TimeTextInput only ever reads its own `value` prop once, on mount (see
+// that component's header comment), so a plain re-render after a save
+// wouldn't visually pick up the freshly-saved value otherwise. The same
+// "remount via a changing key" trick SplitRecorder already uses for its own
+// day/column-layout changes.
+export default function RecordResultsPanel({ event, entries, resultsVersion, onChanged }) {
+  const [savingEntryId, setSavingEntryId] = useState(null)
+  const [error, setError] = useState('')
+  const [drafts, setDrafts] = useState({})
+  const [segmentDrafts, setSegmentDrafts] = useState({})
+  // Per-(entry, team_label) override of the "is this a relay squad" guess —
+  // see looksLikeRelay()'s own header comment for why group size alone
+  // can't be trusted (several teammates entered individually in the same
+  // open event also produce a >1-athlete group).
+  const [relayOverrides, setRelayOverrides] = useState({})
+
+  function groupKey(entryId, label) {
+    return `${entryId}|${label || ''}`
+  }
+
+  function draftKey(entryId, kind, id) {
+    return `${entryId}|${kind}|${id || ''}`
+  }
+
+  function updateDraft(key, value) {
+    setDrafts((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function updateSegmentDraft(key, value) {
+    setSegmentDrafts((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function isGroupRelay(entry, label, teamAthletes) {
+    if (teamAthletes.length <= 1) return false
+    const gKey = groupKey(entry.id, label)
+    return relayOverrides[gKey] ?? looksLikeRelay(entry.event_name)
+  }
+
+  async function handleSaveEntry(entry) {
+    setError('')
+    setSavingEntryId(entry.id)
+    try {
+      const distance = parseEventDistance(entry.event_name) || { value: 1, unit: 'meters' }
+
+      for (const [label, teamAthletes] of groupAthletesByTeam(entry.event_entry_athletes)) {
+        const isRelay = isGroupRelay(entry, label, teamAthletes)
+
+        if (isRelay) {
+          const tKey = draftKey(entry.id, 'team', label)
+          if (tKey in drafts) {
+            await saveTeamResult({ entryId: entry.id, teamLabel: label || null, time: drafts[tKey] })
+          }
+        }
+
+        for (const ea of teamAthletes) {
+          const notes = `Meet result — ${event.name}${isRelay ? ' (relay leg)' : ''}`
+
+          if (isRelay) {
+            const iKey = draftKey(entry.id, 'athlete', ea.athlete_id)
+            if (iKey in drafts) {
+              const name = `${entry.event_name}${label ? ` (${label})` : ''} — Leg`
+              await recordIndividualResult({
+                entryId: entry.id,
+                athleteId: ea.athlete_id,
+                name,
+                notes,
+                segments: singleSegmentFromTime(drafts[iKey], distance),
+              })
+            }
+          } else {
+            const sKey = draftKey(entry.id, 'segments', ea.athlete_id)
+            if (sKey in segmentDrafts) {
+              await recordIndividualResult({
+                entryId: entry.id,
+                athleteId: ea.athlete_id,
+                name: entry.event_name,
+                notes,
+                segments: segmentDrafts[sKey],
+              })
+            }
+          }
+        }
+      }
+
+      await onChanged()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingEntryId(null)
+    }
+  }
+
+  async function handleClearTeam(entry, label) {
+    setError('')
+    setSavingEntryId(entry.id)
+    try {
+      await saveTeamResult({ entryId: entry.id, teamLabel: label || null, time: { hours: 0, minutes: 0, seconds: 0 } })
+      await onChanged()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingEntryId(null)
+    }
+  }
+
+  async function handleClearAthlete(entry, athleteId) {
+    setError('')
+    setSavingEntryId(entry.id)
+    try {
+      await recordIndividualResult({ entryId: entry.id, athleteId, name: entry.event_name, notes: null, segments: [] })
+      await onChanged()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingEntryId(null)
+    }
+  }
+
+  return (
+    <div className="lineup-list">
+      {error && <p className="form-error">{error}</p>}
+
+      {entries.map((entry) => (
+        <div key={entry.id} className="lineup-row result-entry-row">
+          <div className="lineup-time">{formatTime(entry.scheduled_time)}</div>
+          <div className="lineup-details">
+            <div className="lineup-event-name">{entry.event_name}</div>
+
+            {entry.event_entry_athletes.length === 0 ? (
+              <p className="empty-state">No athletes assigned.</p>
+            ) : (
+              groupAthletesByTeam(entry.event_entry_athletes).map(([label, teamAthletes]) => {
+                const gKey = groupKey(entry.id, label)
+                const canBeRelay = teamAthletes.length > 1
+                const isRelay = isGroupRelay(entry, label, teamAthletes)
+                const teamResult = findTeamResult(entry, label)
+                const teamKey = draftKey(entry.id, 'team', label)
+
+                return (
+                  <div className="result-group" key={label || 'default'}>
+                    {label && <div className="lineup-team-label">{label}</div>}
+
+                    {canBeRelay && (
+                      <label className="result-relay-toggle">
+                        <input
+                          type="checkbox"
+                          checked={isRelay}
+                          onChange={(e) => setRelayOverrides((prev) => ({ ...prev, [gKey]: e.target.checked }))}
+                        />
+                        Relay squad (record a team result)
+                      </label>
+                    )}
+
+                    {isRelay && (
+                      <div className="result-row">
+                        <span className="result-athlete-name">Team result</span>
+                        <TimeTextInput
+                          key={`${teamKey}-${resultsVersion}`}
+                          value={drafts[teamKey] ?? resultToTime(teamResult)}
+                          onChange={(v) => updateDraft(teamKey, v)}
+                          ariaLabel={`Team result for ${entry.event_name}${label ? ` ${label}` : ''}`}
+                        />
+                        {teamResult && (
+                          <button type="button" className="link-button danger" onClick={() => handleClearTeam(entry, label)}>
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {isRelay && <p className="result-hint">Individual leg splits (optional):</p>}
+
+                    {isRelay ? (
+                      teamAthletes.map((ea) => {
+                        const saved = resultToTime(ea)
+                        const iKey = draftKey(entry.id, 'athlete', ea.athlete_id)
+                        return (
+                          <div className="result-row" key={ea.athlete_id}>
+                            <span className="result-athlete-name">{ea.profiles?.name || 'Unnamed'}</span>
+                            <TimeTextInput
+                              key={`${iKey}-${resultsVersion}`}
+                              value={drafts[iKey] ?? saved}
+                              onChange={(v) => updateDraft(iKey, v)}
+                              ariaLabel={`Result for ${ea.profiles?.name || 'athlete'}`}
+                            />
+                            {hasTime(saved) && (
+                              <button
+                                type="button"
+                                className="link-button danger"
+                                onClick={() => handleClearAthlete(entry, ea.athlete_id)}
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })
+                    ) : (
+                      <ResultSegmentsGrid
+                        entry={entry}
+                        athletes={teamAthletes}
+                        segmentDrafts={segmentDrafts}
+                        updateSegmentDraft={updateSegmentDraft}
+                        draftKey={draftKey}
+                        resultsVersion={resultsVersion}
+                        onClear={handleClearAthlete}
+                      />
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {entry.event_entry_athletes.length > 0 && (
+            <div className="lineup-actions">
+              <button type="button" onClick={() => handleSaveEntry(entry)} disabled={savingEntryId === entry.id}>
+                {savingEntryId === entry.id ? 'Saving…' : 'Save results'}
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}

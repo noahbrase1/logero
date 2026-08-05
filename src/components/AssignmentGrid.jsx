@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { IconCheck } from '@tabler/icons-react'
 import {
   assignmentToFormPayload,
   createAssignment,
   deleteAssignment,
   fetchAssignmentsForCoach,
 } from '../lib/assignments'
-import { formatDate, summarizeAssignment } from '../utils/format'
+import { formatDate, getInitials, summarizeAssignment, workoutTypeLabel } from '../utils/format'
 import { addDays, formatWeekRangeLabel, startOfWeek, toDateStr } from '../utils/week'
 import { mapWithConcurrency } from '../utils/concurrency'
 import { useToast } from '../context/ToastContext'
 import AssignmentForm from './AssignmentForm'
 import Modal from './Modal'
+import WorkoutTypeIcon from './WorkoutTypeIcon'
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -489,7 +491,12 @@ export default function AssignmentGrid({ athletes, coachId }) {
               {athletes.map((athlete) => (
                 <tr key={athlete.id}>
                   <th scope="row" className="grid-athlete-cell">
-                    {athlete.name || 'Unnamed athlete'}
+                    <span className="grid-athlete-row">
+                      <span className="grid-athlete-avatar" aria-hidden="true">
+                        {getInitials(athlete.name)}
+                      </span>
+                      <span className="grid-athlete-name">{athlete.name || 'Unnamed athlete'}</span>
+                    </span>
                   </th>
                   {days.map((d) => {
                     const cellKey = keyFor(athlete.id, d.dateStr)
@@ -498,20 +505,25 @@ export default function AssignmentGrid({ athletes, coachId }) {
                     return (
                       <td
                         key={d.dateStr}
-                        className={[
-                          'grid-cell',
-                          assignment && `grid-cell-filled type-${assignment.type}`,
-                          isSelected && 'grid-cell-selected',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
+                        className={['grid-cell', isSelected && 'grid-cell-selected'].filter(Boolean).join(' ')}
                         onMouseDown={(e) => handleCellMouseDown(e, athlete.id, d.dateStr)}
                         onMouseEnter={() => handleCellMouseEnter(athlete.id, d.dateStr)}
                         onClick={() => handleCellClick(athlete.id, d.dateStr)}
                         onDragStart={(e) => e.preventDefault()}
                       >
                         {assignment ? (
-                          <span className="grid-cell-summary">{summarizeAssignment(assignment)}</span>
+                          <span className={`grid-cell-card type-${assignment.type}`}>
+                            <span className="grid-cell-card-top">
+                              <WorkoutTypeIcon type={assignment.type} size={14} />
+                              <span className="grid-cell-type-label">{workoutTypeLabel(assignment.type)}</span>
+                            </span>
+                            <span className="grid-cell-detail">{summarizeAssignment(assignment)}</span>
+                            {assignment.status === 'completed' && (
+                              <span className="grid-cell-check" aria-label="Completed">
+                                <IconCheck size={10} stroke={3} />
+                              </span>
+                            )}
+                          </span>
                         ) : (
                           <span className="grid-cell-empty">+</span>
                         )}

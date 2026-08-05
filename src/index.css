@@ -2772,6 +2772,155 @@ button.link-button.danger {
   font-size: 0.85rem;
 }
 
+/* Record Results (RecordResultsPanel) — reuses .lineup-row/.lineup-time/
+   .lineup-details/.lineup-event-name/.lineup-team-label for the outer
+   per-entry row so it matches the plain Lineup view's layout exactly. */
+
+.result-entry-row {
+  align-items: flex-start;
+}
+
+.result-group {
+  margin-top: 0.5rem;
+}
+
+.result-group:first-child {
+  margin-top: 0.35rem;
+}
+
+.result-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0.4rem 0 0.2rem;
+}
+
+.result-relay-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+}
+
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.2rem 0;
+}
+
+.result-athlete-name {
+  min-width: 9rem;
+  font-size: 0.9rem;
+}
+
+.result-row .link-button {
+  font-size: 0.8rem;
+}
+
+/* Record Results' shared splits grid (ResultSegmentsGrid in
+   RecordResultsPanel.jsx) — one column per split, one row per athlete, all
+   running the same race. A CSS Grid for the same reason Split Recorder's
+   own grid is (see that section's own comment above) — sticky first-column
+   + dynamic column count is unreliable on mobile Safari with a table. Only
+   one shared header row is needed here (unlike Split Recorder's own
+   per-athlete header), since a Record Results group is always the same
+   race for everyone in it, never a different structure per athlete. */
+
+.result-grid-wrap {
+  overflow-x: auto;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-top: 0.5rem;
+}
+
+.result-grid {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+}
+
+.result-grid-corner,
+.result-grid-header-cell,
+.result-grid-name-cell,
+.result-grid-value-cell,
+.result-grid-na-cell {
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.result-grid-corner,
+.result-grid-header-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--accent-bg);
+  padding: 0.4rem;
+}
+
+.result-grid-corner {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  /* Overrides the shared rule's translucent --accent-bg — this cell sits
+     over horizontally-scrolled content (the first data column slides under
+     it once scrolled past its own width), so it needs a fully opaque
+     background or that content bleeds through, same fix AssignmentGrid's
+     own sticky .grid-corner-cell already uses. */
+  background: var(--surface);
+}
+
+.result-grid-name-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.5rem 0.7rem;
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+.result-grid-name-cell .link-button {
+  font-size: 0.75rem;
+}
+
+.result-grid-value-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 0.35rem;
+}
+
+/* Padding cell for an athlete with fewer/differently-shaped columns than
+   the grid's widest row (e.g. an old result saved before split_count
+   existed) — never a fillable input, just a marker this athlete has no
+   such column. Same convention Split Recorder's own grid uses. */
+.result-grid-na-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: var(--bg);
+  font-size: 0.75rem;
+}
+
+/* A subtle divider where one segment's reps end and the next begin, so a
+   long flattened column list still reads as distinct groups. */
+.result-grid-segment-start {
+  border-left: 2px solid var(--border);
+}
+
 .lineup-actions .link-button:disabled {
   opacity: 0.3;
   cursor: not-allowed;
@@ -3329,17 +3478,46 @@ button.link-button.danger {
   background: var(--surface);
   text-align: left;
   white-space: nowrap;
-  padding: 0.6rem 0.85rem;
+  padding: 0.5rem 0.85rem;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+}
+
+/* A plain inner wrapper for the avatar+name flex row, rather than setting
+   display: flex directly on the sticky <th> itself — this table already
+   leans on position: sticky in a border-collapse: collapse context (see
+   Split Recorder's own header comment above for why that combination is a
+   known WebKit trap), so the sticky/table-cell element's own box stays
+   untouched and only its content wraps in a flex row. */
+.grid-athlete-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.grid-athlete-avatar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  background: var(--text-muted);
+  color: white;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.grid-athlete-name {
   font-weight: 600;
   color: var(--text-h);
 }
 
 .assignment-grid .grid-cell {
   min-width: 130px;
-  height: 60px;
-  padding: 0.4rem 0.5rem;
+  height: 76px;
+  padding: 0.3rem;
   border: 1px solid var(--border);
   cursor: pointer;
   user-select: none;
@@ -3357,24 +3535,105 @@ button.link-button.danger {
   background: var(--accent-bg);
 }
 
-.assignment-grid .grid-cell-empty {
+.grid-cell-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border);
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
-.assignment-grid .grid-cell-filled {
-  border-left: 3px solid var(--border);
+.assignment-grid .grid-cell:hover .grid-cell-empty {
+  border-color: var(--accent);
+  color: var(--accent);
 }
-.assignment-grid .grid-cell-filled.type-running { border-left-color: var(--running); }
-.assignment-grid .grid-cell-filled.type-swim { border-left-color: var(--swim); }
-.assignment-grid .grid-cell-filled.type-bike { border-left-color: var(--bike); }
-.assignment-grid .grid-cell-filled.type-lifting { border-left-color: var(--lifting); }
-.assignment-grid .grid-cell-filled.type-other { border-left-color: var(--other); }
 
-.grid-cell-summary {
-  font-size: 0.78rem;
-  color: var(--text);
-  display: block;
+/* A rounded, sport-tinted card filling the cell — replaces the old plain
+   left-border-accent cell now that the grid follows the same "colorful
+   card per workout" look as the mobile mockup this was redesigned from.
+   Tints are computed from the same fixed, non-theme-customizable sport
+   colors (--running/--swim/etc, see "Sport-type colors" above) via
+   color-mix rather than hand-picked rgba values, so a sport's card tint
+   always tracks its own color if that's ever adjusted. */
+.grid-cell-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  height: 100%;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  overflow: hidden;
+}
+
+.grid-cell-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.grid-cell-type-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grid-cell-detail {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.25;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Universal success-green regardless of sport — the card's own background/
+   icon already conveys sport type, so the badge's only job is completion
+   status, and keeping that one color across every sport is what makes it
+   glanceable ("scan for green") rather than needing to learn 5 meanings.
+   Matches the same --success color the .status-completed pill elsewhere
+   already uses for "done". */
+.grid-cell-check {
+  position: absolute;
+  right: 0.3rem;
+  bottom: 0.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: var(--radius-pill);
+  background: var(--success);
+  color: white;
+}
+
+.grid-cell-card.type-running {
+  background: color-mix(in srgb, var(--running) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--running) 28%, var(--border));
+}
+.grid-cell-card.type-swim {
+  background: color-mix(in srgb, var(--swim) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--swim) 28%, var(--border));
+}
+.grid-cell-card.type-bike {
+  background: color-mix(in srgb, var(--bike) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--bike) 28%, var(--border));
+}
+.grid-cell-card.type-lifting {
+  background: color-mix(in srgb, var(--lifting) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--lifting) 28%, var(--border));
+}
+.grid-cell-card.type-other {
+  background: color-mix(in srgb, var(--other) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--other) 28%, var(--border));
 }
 
 .grid-paste-confirm {

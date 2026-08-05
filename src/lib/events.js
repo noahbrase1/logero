@@ -59,7 +59,12 @@ export async function fetchEventById(id) {
 // Meet lineup (event entries)
 // ---------------------------------------------------------------------------
 
-const ENTRY_SELECT = '*, event_entry_athletes(athlete_id, team_label, profiles(id, name))'
+// workouts(...) is embedded via event_entry_athletes.workout_id's FK so
+// RecordResultsPanel can prefill its segment editor from whatever was
+// already recorded, not just the result_hours/minutes/seconds summary —
+// see "Meet Results (Record Results mode)" in CLAUDE.md.
+const ENTRY_SELECT =
+  '*, event_entry_athletes(athlete_id, team_label, result_hours, result_minutes, result_seconds, workout_id, profiles(id, name), workouts(id, running_segments(*, running_segment_reps(*)))), event_entry_results(*)'
 
 export async function fetchEventEntries(eventId) {
   const { data, error } = await supabase
@@ -85,7 +90,7 @@ function flattenTeams(teams) {
   return rows
 }
 
-export async function createEventEntry({ eventId, eventName, scheduledTime, orderIndex, teams }) {
+export async function createEventEntry({ eventId, eventName, scheduledTime, orderIndex, splitCount, teams }) {
   const { data: entry, error } = await supabase
     .from('event_entries')
     .insert({
@@ -93,6 +98,7 @@ export async function createEventEntry({ eventId, eventName, scheduledTime, orde
       event_name: eventName,
       scheduled_time: scheduledTime || null,
       order_index: orderIndex,
+      split_count: splitCount || null,
     })
     .select()
     .single()
@@ -110,10 +116,10 @@ export async function createEventEntry({ eventId, eventName, scheduledTime, orde
 
 // Replaces the athlete list wholesale (delete then re-insert) — same
 // approach used for workout segments/exercises, simpler than diffing.
-export async function updateEventEntry(id, { eventName, scheduledTime, teams }) {
+export async function updateEventEntry(id, { eventName, scheduledTime, splitCount, teams }) {
   const { error } = await supabase
     .from('event_entries')
-    .update({ event_name: eventName, scheduled_time: scheduledTime || null })
+    .update({ event_name: eventName, scheduled_time: scheduledTime || null, split_count: splitCount || null })
     .eq('id', id)
   if (error) throw error
 
