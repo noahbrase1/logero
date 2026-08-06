@@ -2822,11 +2822,22 @@ button.link-button.danger {
 /* Record Results' shared splits grid (ResultSegmentsGrid in
    RecordResultsPanel.jsx) — one column per split, one row per athlete, all
    running the same race. A CSS Grid for the same reason Split Recorder's
-   own grid is (see that section's own comment above) — sticky first-column
-   + dynamic column count is unreliable on mobile Safari with a table. Only
-   one shared header row is needed here (unlike Split Recorder's own
-   per-athlete header), since a Record Results group is always the same
-   race for everyone in it, never a different structure per athlete. */
+   own grid is (see that section's own comment above) — dynamic column
+   count is unreliable on mobile with a table. Only one shared header row is
+   needed here (unlike Split Recorder's own per-athlete header), since a
+   Record Results group is always the same race for everyone in it, never a
+   different structure per athlete.
+
+   The name column is deliberately NOT sticky, unlike Split Recorder's own
+   grid — position: sticky combined with a dynamically-set inline
+   grid-template-columns inside an overflow-x: auto wrapper reliably
+   collapsed the whole grid to a single column on iOS Safari specifically
+   (confirmed: identical markup/data rendered correctly on desktop, broke
+   only on an iPhone PWA — a known category of WebKit bug around sticky
+   grid children miscalculating the scrollable content's width). A Record
+   Results group is typically a handful of athletes, not Split Recorder's
+   potentially 50-athlete roster, so losing "name stays pinned while
+   scrolling" is an acceptable trade for the grid actually rendering. */
 
 .result-grid-wrap {
   overflow-x: auto;
@@ -2864,22 +2875,7 @@ button.link-button.danger {
   padding: 0.4rem;
 }
 
-.result-grid-corner {
-  position: sticky;
-  left: 0;
-  z-index: 2;
-  /* Overrides the shared rule's translucent --accent-bg — this cell sits
-     over horizontally-scrolled content (the first data column slides under
-     it once scrolled past its own width), so it needs a fully opaque
-     background or that content bleeds through, same fix AssignmentGrid's
-     own sticky .grid-corner-cell already uses. */
-  background: var(--surface);
-}
-
 .result-grid-name-cell {
-  position: sticky;
-  left: 0;
-  z-index: 1;
   background: var(--surface);
   display: flex;
   align-items: center;
