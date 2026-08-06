@@ -2858,11 +2858,23 @@ button.link-button.danger {
   }
 }
 
+/* A fixed, deliberately narrow width — without this, a name row's "Clear"
+   button (nowrap, sitting beside the name) had no cap on how wide it could
+   force the whole pane to stretch, silently eating space that should have
+   gone to the actual splits on the narrow side of the screen. Long names
+   ellipsize rather than push the pane wider. */
 .result-grid-names {
   flex-shrink: 0;
+  width: 84px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .result-grid-names {
+    width: 92px;
+  }
 }
 
 .result-grid-names-corner,
@@ -2871,7 +2883,7 @@ button.link-button.danger {
   align-items: center;
   height: var(--result-row-h);
   box-sizing: border-box;
-  padding: 0.4rem 0.7rem;
+  padding: 0.4rem 0.5rem;
   border-bottom: 1px solid var(--border);
 }
 
@@ -2882,18 +2894,28 @@ button.link-button.danger {
   background: var(--accent-bg);
 }
 
+/* Stacked (name above Clear), not side-by-side — side-by-side is exactly
+   what forced the pane too wide before (see the width comment above). */
 .result-grid-names-row {
-  justify-content: space-between;
-  gap: 0.4rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.1rem;
   background: var(--surface);
   font-weight: 600;
   color: var(--text-h);
+}
+
+.result-grid-names-row span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 @media (max-width: 640px) {
   .result-grid-names-row {
-    font-size: 1rem;
+    font-size: 0.95rem;
   }
 }
 
