@@ -108,6 +108,14 @@ function formatColumnLabel(col) {
 // result recorded before split_count existed) just gets non-editable "N/A"
 // cells for whatever columns they don't have, mirroring SplitRecorder's own
 // convention for an athlete with fewer columns than the grid's widest row.
+//
+// Split into two independent panes (.result-grid-names + .result-grid-scroll,
+// see index.css) rather than a sticky first column inside one scrolling
+// grid — position: sticky combined with a dynamically-set inline
+// grid-template-columns inside overflow-x: auto reliably collapsed the
+// whole grid to a single column on iOS Safari (confirmed on-device; desktop
+// rendered the identical markup/data fine). The names pane never scrolls
+// horizontally at all, so it needs no sticky behavior to "stay visible."
 function ResultSegmentsGrid({ entry, athletes, segmentDrafts, updateSegmentDraft, draftKey, resultsVersion, onClear }) {
   const athleteData = athletes.map((ea) => {
     const sKey = draftKey(entry.id, 'segments', ea.athlete_id)
@@ -122,37 +130,41 @@ function ResultSegmentsGrid({ entry, athletes, segmentDrafts, updateSegmentDraft
   })
 
   return (
-    <div className="result-grid-wrap">
-      <div
-        className="result-grid"
-        style={{ gridTemplateColumns: `minmax(140px, auto) repeat(${maxColumns}, minmax(90px, 1fr))` }}
-      >
-        <div className="result-grid-corner">Athlete</div>
-        {headerColumns.map((col, i) => (
-          <div
-            key={i}
-            className={`result-grid-header-cell ${
-              i > 0 && headerColumns[i - 1] && col && col.segIndex !== headerColumns[i - 1].segIndex
-                ? 'result-grid-segment-start'
-                : ''
-            }`}
-          >
-            {formatColumnLabel(col)}
-          </div>
-        ))}
-
-        {athleteData.map(({ ea, sKey, segments, columns }) => {
+    <div className="result-grid-outer">
+      <div className="result-grid-names">
+        <div className="result-grid-names-corner">Athlete</div>
+        {athleteData.map(({ ea }) => {
           const saved = resultToTime(ea)
           return (
+            <div className="result-grid-names-row" key={ea.athlete_id}>
+              <span>{ea.profiles?.name || 'Unnamed'}</span>
+              {hasTime(saved) && (
+                <button type="button" className="link-button danger" onClick={() => onClear(entry, ea.athlete_id)}>
+                  Clear
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="result-grid-scroll">
+        <div className="result-grid" style={{ gridTemplateColumns: `repeat(${maxColumns}, minmax(120px, 1fr))` }}>
+          {headerColumns.map((col, i) => (
+            <div
+              key={i}
+              className={`result-grid-header-cell ${
+                i > 0 && headerColumns[i - 1] && col && col.segIndex !== headerColumns[i - 1].segIndex
+                  ? 'result-grid-segment-start'
+                  : ''
+              }`}
+            >
+              {formatColumnLabel(col)}
+            </div>
+          ))}
+
+          {athleteData.map(({ ea, sKey, segments, columns }) => (
             <Fragment key={ea.athlete_id}>
-              <div className="result-grid-name-cell">
-                <span>{ea.profiles?.name || 'Unnamed'}</span>
-                {hasTime(saved) && (
-                  <button type="button" className="link-button danger" onClick={() => onClear(entry, ea.athlete_id)}>
-                    Clear
-                  </button>
-                )}
-              </div>
               {Array.from({ length: maxColumns }, (_, i) => {
                 const col = columns[i]
                 if (!col) {
@@ -177,8 +189,8 @@ function ResultSegmentsGrid({ entry, athletes, segmentDrafts, updateSegmentDraft
                 )
               })}
             </Fragment>
-          )
-        })}
+          ))}
+        </div>
       </div>
     </div>
   )

@@ -2821,37 +2821,91 @@ button.link-button.danger {
 
 /* Record Results' shared splits grid (ResultSegmentsGrid in
    RecordResultsPanel.jsx) — one column per split, one row per athlete, all
-   running the same race. A CSS Grid for the same reason Split Recorder's
-   own grid is (see that section's own comment above) — dynamic column
-   count is unreliable on mobile with a table. Only one shared header row is
-   needed here (unlike Split Recorder's own per-athlete header), since a
-   Record Results group is always the same race for everyone in it, never a
-   different structure per athlete.
+   running the same race.
 
-   The name column is deliberately NOT sticky, unlike Split Recorder's own
-   grid — position: sticky combined with a dynamically-set inline
-   grid-template-columns inside an overflow-x: auto wrapper reliably
-   collapsed the whole grid to a single column on iOS Safari specifically
-   (confirmed: identical markup/data rendered correctly on desktop, broke
-   only on an iPhone PWA — a known category of WebKit bug around sticky
-   grid children miscalculating the scrollable content's width). A Record
-   Results group is typically a handful of athletes, not Split Recorder's
-   potentially 50-athlete roster, so losing "name stays pinned while
-   scrolling" is an acceptable trade for the grid actually rendering. */
+   Split into two independent panes instead of one grid with a sticky first
+   column — .result-grid-names (plain flex column, never scrolls
+   horizontally) sits beside .result-grid-scroll (the actual
+   horizontally-scrollable splits). This is deliberately NOT
+   position: sticky inside the scrolling grid, unlike Split Recorder's own
+   grid: sticky combined with a dynamically-set inline grid-template-columns
+   inside an overflow-x: auto wrapper reliably collapsed the whole grid to a
+   single column on iOS Safari specifically (confirmed: identical
+   markup/data rendered correctly on desktop, broke only on an iPhone PWA —
+   a known category of WebKit bug around sticky grid children
+   miscalculating the scrollable content's width). Two side-by-side panes
+   sharing one --result-row-h custom property (so every row lines up
+   between them without either pane needing to know the other's DOM) sidesteps
+   that bug entirely rather than trying to work around it. */
 
-/* Breaks out of .lineup-row's own horizontal padding (0.85rem 1.1rem) so
-   the grid spans the full width of the entry card rather than being
-   squeezed narrower by two stacked layers of padding (.page's + the
-   card's) — the same amount of usable width the coach assignment grid
-   gets, which has no such extra card wrapper around it. Flush against the
-   card's own edges, so square corners here (not the wrap's own
-   border-radius) read correctly against the card's rounded ones. */
-.result-grid-wrap {
-  overflow-x: auto;
-  min-width: 0;
+.result-grid-outer {
+  display: flex;
+  align-items: flex-start;
   margin: 0.5rem -1.1rem 0;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+  /* Deliberately much larger on mobile than the ~40px an unstyled row
+     would need — small tap targets were the actual complaint, not just
+     the grid's overall width, so this pushes both row height and (below)
+     column width/font-size up meaningfully rather than just letting more
+     same-sized columns fit on screen. */
+  --result-row-h: 52px;
+}
+
+@media (max-width: 640px) {
+  .result-grid-outer {
+    --result-row-h: 76px;
+  }
+}
+
+.result-grid-names {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+
+.result-grid-names-corner,
+.result-grid-names-row {
+  display: flex;
+  align-items: center;
+  height: var(--result-row-h);
+  box-sizing: border-box;
+  padding: 0.4rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.result-grid-names-corner {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--accent-bg);
+}
+
+.result-grid-names-row {
+  justify-content: space-between;
+  gap: 0.4rem;
+  background: var(--surface);
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .result-grid-names-row {
+    font-size: 1rem;
+  }
+}
+
+.result-grid-names-row .link-button {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.result-grid-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .result-grid {
@@ -2860,16 +2914,15 @@ button.link-button.danger {
   min-width: 100%;
 }
 
-.result-grid-corner,
 .result-grid-header-cell,
-.result-grid-name-cell,
 .result-grid-value-cell,
 .result-grid-na-cell {
+  height: var(--result-row-h);
+  box-sizing: border-box;
   border-bottom: 1px solid var(--border);
   border-right: 1px solid var(--border);
 }
 
-.result-grid-corner,
 .result-grid-header-cell {
   display: flex;
   align-items: center;
@@ -2882,27 +2935,30 @@ button.link-button.danger {
   padding: 0.4rem;
 }
 
-.result-grid-name-cell {
-  background: var(--surface);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-  padding: 0.5rem 0.7rem;
-  font-weight: 600;
-  color: var(--text-h);
-  white-space: nowrap;
-}
-
-.result-grid-name-cell .link-button {
-  font-size: 0.75rem;
-}
-
 .result-grid-value-cell {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.3rem 0.35rem;
+  padding: 0.3rem 0.4rem;
+}
+
+/* The input fills its cell rather than TimeTextInput's own fixed 5.5rem,
+   so it actually grows with the wider mobile column instead of floating
+   in extra empty space. */
+.result-grid-value-cell .time-text-input,
+.result-grid-value-cell .time-text-input input {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .result-grid-header-cell {
+    font-size: 0.85rem;
+  }
+
+  .result-grid-value-cell input {
+    font-size: 1.05rem;
+    padding: 0.6rem 0.5rem;
+  }
 }
 
 /* Padding cell for an athlete with fewer/differently-shaped columns than
