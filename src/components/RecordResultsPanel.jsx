@@ -149,7 +149,7 @@ function ResultSegmentsGrid({ entry, athletes, segmentDrafts, updateSegmentDraft
       </div>
 
       <div className="result-grid-scroll">
-        <div className="result-grid" style={{ gridTemplateColumns: `repeat(${maxColumns}, minmax(120px, 1fr))` }}>
+        <div className="result-grid" style={{ gridTemplateColumns: `repeat(${maxColumns}, minmax(var(--result-col-w), 1fr))` }}>
           {headerColumns.map((col, i) => (
             <div
               key={i}
