@@ -2839,12 +2839,19 @@ button.link-button.danger {
    potentially 50-athlete roster, so losing "name stays pinned while
    scrolling" is an acceptable trade for the grid actually rendering. */
 
+/* Breaks out of .lineup-row's own horizontal padding (0.85rem 1.1rem) so
+   the grid spans the full width of the entry card rather than being
+   squeezed narrower by two stacked layers of padding (.page's + the
+   card's) — the same amount of usable width the coach assignment grid
+   gets, which has no such extra card wrapper around it. Flush against the
+   card's own edges, so square corners here (not the wrap's own
+   border-radius) read correctly against the card's rounded ones. */
 .result-grid-wrap {
   overflow-x: auto;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  margin-top: 0.5rem;
+  margin: 0.5rem -1.1rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
 .result-grid {
