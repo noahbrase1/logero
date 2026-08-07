@@ -72,9 +72,9 @@ export default function EventDetailPage() {
     setError('')
     try {
       if (editingEntry) {
-        await updateEventEntry(editingEntry.id, values)
+        await updateEventEntry(editingEntry.id, { eventDate: event.date, ...values })
       } else {
-        await createEventEntry({ eventId: id, orderIndex: entries.length, ...values })
+        await createEventEntry({ eventId: id, eventDate: event.date, orderIndex: entries.length, ...values })
       }
       closeForm()
       load()

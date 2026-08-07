@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { parseEventDistance } from './meetResults'
 
 export async function fetchEvents() {
   const { data, error } = await supabase.from('events').select('*').order('date', { ascending: true })
@@ -90,7 +91,28 @@ function flattenTeams(teams) {
   return rows
 }
 
-export async function createEventEntry({ eventId, eventName, scheduledTime, orderIndex, splitCount, teams }) {
+// Keeps a lineup entry's roster in sync with each athlete's own assigned
+// workout for the event's date — see sync_lineup_assignment_segments() in
+// supabase/lineup_race_assignments_schema.sql for what this actually does
+// (add/update/remove one target segment per athlete, never touching
+// anything else on their assignment). Distance is resolved here, once,
+// with the same fallback RecordResultsPanel's own segment editor already
+// uses (parseEventDistance() || a nominal 1 meter), so a lineup entry's
+// assigned segment and its eventual recorded result always agree.
+async function syncLineupAssignments(entryId, eventDate, eventName, athleteIds) {
+  const distance = eventName ? parseEventDistance(eventName) || { value: 1, unit: 'meters' } : null
+  const { error } = await supabase.rpc('sync_lineup_assignment_segments', {
+    p_entry_id: entryId,
+    p_event_date: eventDate || null,
+    p_distance_value: distance?.value ?? null,
+    p_distance_unit: distance?.unit ?? null,
+    p_label: eventName || null,
+    p_athlete_ids: athleteIds,
+  })
+  if (error) throw error
+}
+
+export async function createEventEntry({ eventId, eventDate, eventName, scheduledTime, orderIndex, splitCount, teams }) {
   const { data: entry, error } = await supabase
     .from('event_entries')
     .insert({
@@ -111,12 +133,15 @@ export async function createEventEntry({ eventId, eventName, scheduledTime, orde
     if (athletesError) throw athletesError
   }
 
+  const athleteIds = [...new Set(athleteRows.map((r) => r.athlete_id))]
+  await syncLineupAssignments(entry.id, eventDate, eventName, athleteIds)
+
   return entry
 }
 
 // Replaces the athlete list wholesale (delete then re-insert) — same
 // approach used for workout segments/exercises, simpler than diffing.
-export async function updateEventEntry(id, { eventName, scheduledTime, splitCount, teams }) {
+export async function updateEventEntry(id, { eventDate, eventName, scheduledTime, splitCount, teams }) {
   const { error } = await supabase
     .from('event_entries')
     .update({ event_name: eventName, scheduled_time: scheduledTime || null, split_count: splitCount || null })
@@ -132,9 +157,16 @@ export async function updateEventEntry(id, { eventName, scheduledTime, splitCoun
     const { error: insertError } = await supabase.from('event_entry_athletes').insert(rows)
     if (insertError) throw insertError
   }
+
+  const athleteIds = [...new Set(athleteRows.map((r) => r.athlete_id))]
+  await syncLineupAssignments(id, eventDate, eventName, athleteIds)
 }
 
+// Drops every athlete's linked assignment segment for this entry (and any
+// assignment left completely empty by that) before deleting the entry
+// itself — see syncLineupAssignments above.
 export async function deleteEventEntry(id) {
+  await syncLineupAssignments(id, null, null, [])
   const { error } = await supabase.from('event_entries').delete().eq('id', id)
   if (error) throw error
 }
