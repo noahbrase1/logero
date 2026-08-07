@@ -2862,7 +2862,7 @@ button.link-button.danger {
 @media (max-width: 640px) {
   .result-grid-outer {
     --result-row-h: 76px;
-    --result-col-w: 100px;
+    --result-col-w: 150px;
   }
 }
 
@@ -2986,8 +2986,8 @@ button.link-button.danger {
   }
 
   .result-grid-value-cell input {
-    font-size: 0.95rem;
-    padding: 0.55rem 0.4rem;
+    font-size: 1rem;
+    padding: 0.55rem 0.5rem;
   }
 }
 
