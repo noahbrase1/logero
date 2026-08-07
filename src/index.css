@@ -3447,6 +3447,25 @@ button.link-button.danger {
     flex-wrap: wrap;
   }
 
+  /* Found after several rounds of tuning the splits grid's own internal
+     CSS produced literally no visible change on-device: the real
+     bottleneck was here, one level up. .lineup-time (min-width: 5rem,
+     never shrinks) and .lineup-actions (never shrinks, and on Record
+     Results holds a whole "Save results" button — 130px+) don't
+     themselves ever wrap, and since .lineup-details has min-width: 0 (so
+     it CAN shrink arbitrarily small), flex-wrap never actually triggers a
+     wrap to a new line — the browser just squeezes .lineup-details, and
+     everything inside it including the whole splits grid, into whatever
+     sliver is left on the same line as the time and the button. Forcing
+     flex-basis: 100% here means nothing else fits alongside it, so it's
+     forced onto its own full-width line below them instead — this is
+     Record-Results-specific (.result-entry-row) since the plain Lineup
+     view's own .lineup-actions (↑/↓/Edit/Delete link-buttons) is narrow
+     enough to never trigger this in the first place. */
+  .result-entry-row .lineup-details {
+    flex-basis: 100%;
+  }
+
   /* Messages: the fixed-width ConversationList panel plus a conversation
      pane doesn't fit a 375px screen at all, so below this width it becomes
      a single-pane list/detail view instead — the list full-width when no
