@@ -2857,12 +2857,14 @@ button.link-button.danger {
      stylesheet rule, media query or not. */
   --result-row-h: 52px;
   --result-col-w: 100px;
+  --result-names-w: 84px;
 }
 
 @media (max-width: 640px) {
   .result-grid-outer {
     --result-row-h: 76px;
     --result-col-w: 150px;
+    --result-names-w: 92px;
   }
 }
 
@@ -2873,16 +2875,10 @@ button.link-button.danger {
    ellipsize rather than push the pane wider. */
 .result-grid-names {
   flex-shrink: 0;
-  width: 84px;
+  width: var(--result-names-w);
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
-}
-
-@media (max-width: 640px) {
-  .result-grid-names {
-    width: 92px;
-  }
 }
 
 .result-grid-names-corner,
@@ -2932,8 +2928,16 @@ button.link-button.danger {
   flex-shrink: 0;
 }
 
+/* An explicit calc() width instead of flex: 1 — flex-grow relies on the
+   browser correctly computing "remaining space after the fixed-width
+   sibling," which should be equivalent but was suspected (on-device,
+   unconfirmed) of resolving to something far too small specifically when
+   this element's own child is a very wide (width: max-content) CSS Grid
+   with a dynamically-set column count, on iOS. A width tied directly to
+   the same --result-names-w custom property .result-grid-names uses removes
+   any reliance on flex-grow's own resolution for this specific layout. */
 .result-grid-scroll {
-  flex: 1;
+  width: calc(100% - var(--result-names-w));
   min-width: 0;
   overflow-x: auto;
 }
