@@ -2844,24 +2844,25 @@ button.link-button.danger {
   margin: 0.5rem -1.1rem 0;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  /* Deliberately much larger on mobile than the ~40px an unstyled row
-     would need — small tap targets were the actual complaint, not just
-     the grid's overall width, so this pushes both row height and column
-     width/font-size up meaningfully rather than just letting more
-     same-sized columns fit on screen. --result-col-w feeds the inline
-     grid-template-columns set in RecordResultsPanel.jsx (repeat(maxColumns,
-     minmax(var(--result-col-w), 1fr))) — routed through a custom property
-     specifically so this media query can actually change it; a plain pixel
-     value baked directly into that JS-computed inline style can't be
-     overridden by any external stylesheet rule, media query or not. */
+  /* --result-row-h is deliberately much taller on mobile than the ~40px an
+     unstyled row would need, for bigger tap targets — but --result-col-w
+     stays roughly the same width on both: the goal there is fitting
+     several splits on screen at once without horizontal scrolling, which
+     narrower (not wider) columns achieve, the opposite axis from row
+     height. --result-col-w feeds the inline grid-template-columns set in
+     RecordResultsPanel.jsx (repeat(maxColumns, minmax(var(--result-col-w),
+     1fr))) — routed through a custom property specifically so this media
+     query can actually change it; a plain pixel value baked directly into
+     that JS-computed inline style can't be overridden by any external
+     stylesheet rule, media query or not. */
   --result-row-h: 52px;
-  --result-col-w: 110px;
+  --result-col-w: 100px;
 }
 
 @media (max-width: 640px) {
   .result-grid-outer {
     --result-row-h: 76px;
-    --result-col-w: 190px;
+    --result-col-w: 100px;
   }
 }
 
@@ -2985,8 +2986,8 @@ button.link-button.danger {
   }
 
   .result-grid-value-cell input {
-    font-size: 1.05rem;
-    padding: 0.6rem 0.5rem;
+    font-size: 0.95rem;
+    padding: 0.55rem 0.4rem;
   }
 }
 
