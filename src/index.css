@@ -2845,25 +2845,19 @@ button.link-button.danger {
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   /* --result-row-h is deliberately much taller on mobile than the ~40px an
-     unstyled row would need, for bigger tap targets — but --result-col-w
-     stays roughly the same width on both: the goal there is fitting
-     several splits on screen at once without horizontal scrolling, which
-     narrower (not wider) columns achieve, the opposite axis from row
-     height. --result-col-w feeds the inline grid-template-columns set in
-     RecordResultsPanel.jsx (repeat(maxColumns, minmax(var(--result-col-w),
-     1fr))) — routed through a custom property specifically so this media
-     query can actually change it; a plain pixel value baked directly into
-     that JS-computed inline style can't be overridden by any external
-     stylesheet rule, media query or not. */
+     unstyled row would need, for bigger tap targets. Column width is
+     NOT a custom property here (unlike row height/names width) — it's
+     computed in JS (useIsNarrowViewport() in RecordResultsPanel.jsx) and
+     interpolated directly into the inline grid-template-columns, on
+     suspicion of a WebKit bug resolving var() specifically inside
+     repeat()/minmax(); see that hook's own header comment. */
   --result-row-h: 52px;
-  --result-col-w: 100px;
   --result-names-w: 84px;
 }
 
 @media (max-width: 640px) {
   .result-grid-outer {
     --result-row-h: 76px;
-    --result-col-w: 150px;
     --result-names-w: 92px;
   }
 }

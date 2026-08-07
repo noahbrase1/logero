@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import TimeTextInput from './TimeTextInput'
 import { emptyRepTime, makeEmptySegment } from './SegmentEditor'
 import { groupAthletesByTeam, looksLikeRelay } from '../utils/lineup'
@@ -96,6 +96,30 @@ function formatColumnLabel(col) {
   return `${formatDistanceValue(col.distanceValue, col.distanceUnit)}${unitAbbrev(col.distanceUnit)} (${col.repIndex + 1})`
 }
 
+// Tracks whether the viewport is at/below the same 640px breakpoint the
+// grid's own CSS media queries use for row height/font-size, so the column
+// width can match in JS. Deliberately NOT done by routing the column width
+// through a CSS custom property referenced inside grid-template-columns'
+// repeat()/minmax() the way row height and the names-pane width are —
+// suspected (on-device, unconfirmed) WebKit bug resolving var() specifically
+// in that position, a narrower/different failure mode than the sticky-
+// positioning and flex-sizing bugs already found and fixed in this same
+// grid. A real number computed here and interpolated directly into the
+// inline style sidesteps that whole category of risk.
+function useIsNarrowViewport() {
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth <= 640
+  )
+  useEffect(() => {
+    function handleResize() {
+      setIsNarrow(window.innerWidth <= 640)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+  return isNarrow
+}
+
 // A shared grid — one column per split, one row per athlete — for a group
 // of athletes all running the same individual race, so a coach fills times
 // across everyone at once instead of scrolling through one full segment
@@ -117,6 +141,9 @@ function formatColumnLabel(col) {
 // rendered the identical markup/data fine). The names pane never scrolls
 // horizontally at all, so it needs no sticky behavior to "stay visible."
 function ResultSegmentsGrid({ entry, athletes, segmentDrafts, updateSegmentDraft, draftKey, resultsVersion, onClear }) {
+  const isNarrow = useIsNarrowViewport()
+  const colWidth = isNarrow ? 150 : 100
+
   const athleteData = athletes.map((ea) => {
     const sKey = draftKey(entry.id, 'segments', ea.athlete_id)
     const segments = segmentDrafts[sKey] ?? initialSegments(ea, entry)
@@ -149,7 +176,7 @@ function ResultSegmentsGrid({ entry, athletes, segmentDrafts, updateSegmentDraft
       </div>
 
       <div className="result-grid-scroll">
-        <div className="result-grid" style={{ gridTemplateColumns: `repeat(${maxColumns}, minmax(var(--result-col-w), 1fr))` }}>
+        <div className="result-grid" style={{ gridTemplateColumns: `repeat(${maxColumns}, minmax(${colWidth}px, 1fr))` }}>
           {headerColumns.map((col, i) => (
             <div
               key={i}
