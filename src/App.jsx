@@ -22,6 +22,7 @@ import TeamSettingsPage from './pages/TeamSettingsPage'
 import EventsPage from './pages/EventsPage'
 import EventDetailPage from './pages/EventDetailPage'
 import CoachAssignmentsPage from './pages/CoachAssignmentsPage'
+import SplitsPage from './pages/SplitsPage'
 import AccountSettingsPage from './pages/AccountSettingsPage'
 import SuperAdminPage from './pages/SuperAdminPage'
 
@@ -122,6 +123,7 @@ export default function App() {
             <Route path="/events" element={<EventsPage />} />
             <Route path="/events/:id" element={<EventDetailPage />} />
             <Route path="/assignments" element={<CoachAssignmentsPage />} />
+            <Route path="/splits" element={<SplitsPage />} />
             <Route path="/account" element={<AccountSettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

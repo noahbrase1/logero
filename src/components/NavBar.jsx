@@ -4,6 +4,7 @@ import {
   IconClipboardList,
   IconMessageCircle,
   IconPalette,
+  IconStopwatch,
   IconUserCircle,
   IconUsers,
 } from '@tabler/icons-react'
@@ -22,10 +23,15 @@ export default function NavBar() {
   const isCoach = profile?.role === 'coach'
   const isAdmin = profile?.role === 'admin'
 
-  // Coach and admin share one order/label set, uniform with BottomNav's
-  // mobile tabs (Workouts/Calendar/Messages/Athletes primary, Team Theme
-  // under More) — "Workouts" is also the coach/admin home page ("/"),
-  // folding in what used to be a separate "Team Logs" nav destination.
+  // Coach and admin share one order/label set — "Workouts" is also the
+  // coach/admin home page ("/"), folding in what used to be a separate
+  // "Team Logs" nav destination. Splits is coach-only (it's a write tool,
+  // same gating as the SplitRecorder/RecordResultsPanel it opens — see
+  // SplitsPage.jsx), unlike the rest of this list which admin also sees
+  // read-only, so it's the one link BottomNav's mobile tabs (Workouts/
+  // Calendar/Messages/Splits primary for a coach, Athletes primary for an
+  // admin) don't uniformly mirror here — desktop has room to keep Athletes
+  // in the top-level nav for both roles instead of moving it under More.
   const links = isCoach || isAdmin ? (
     <>
       <NavLink to="/" end>
@@ -40,6 +46,12 @@ export default function NavBar() {
         <IconMessageCircle size={18} stroke={1.75} />
         Messages
       </NavLink>
+      {isCoach && (
+        <NavLink to="/splits">
+          <IconStopwatch size={18} stroke={1.75} />
+          Splits
+        </NavLink>
+      )}
       <NavLink to="/roster">
         <IconUsers size={18} stroke={1.75} />
         Athletes

@@ -15,7 +15,6 @@ import { formatDate, formatTime, formatTimeRange } from '../utils/format'
 import { downloadLineupPdf } from '../utils/lineupPdf'
 import { groupAthletesByTeam } from '../utils/lineup'
 import EventEntryForm from '../components/EventEntryForm'
-import RecordResultsPanel from '../components/RecordResultsPanel'
 
 const CATEGORY_ICONS = {
   meet: IconTrophy,
@@ -38,12 +37,6 @@ export default function EventDetailPage() {
   const [editingEntry, setEditingEntry] = useState(null)
   const [saving, setSaving] = useState(false)
 
-  const [view, setView] = useState('lineup')
-  // Bumped on every entries reload so RecordResultsPanel's TimeTextInputs
-  // remount and pick up freshly-saved values — see that component's own
-  // header comment for why a plain re-render isn't enough.
-  const [resultsVersion, setResultsVersion] = useState(0)
-
   function load() {
     setLoading(true)
     setError('')
@@ -52,21 +45,9 @@ export default function EventDetailPage() {
         setEvent(eventData)
         setEntries(entryData)
         setAthletes(athleteData)
-        setResultsVersion((v) => v + 1)
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }
-
-  // Lighter-weight than load(): re-fetches just the lineup entries after a
-  // result is saved/cleared, without flipping the whole page back to its
-  // loading spinner (load() does that, appropriate for the initial mount /
-  // switching events, not for a quick per-entry save).
-  function reloadEntries() {
-    return fetchEventEntries(id).then((entryData) => {
-      setEntries(entryData)
-      setResultsVersion((v) => v + 1)
-    })
   }
 
   useEffect(load, [id])
@@ -198,7 +179,7 @@ export default function EventDetailPage() {
       <div className="page-header-row">
         <h2 className="events-section-heading">Lineup</h2>
         <div className="lineup-header-actions">
-          {isCoach && view === 'lineup' && entries.length > 1 && (
+          {isCoach && entries.length > 1 && (
             <button type="button" className="link-button" onClick={handleSortByTime}>
               Sort by time
             </button>
@@ -211,71 +192,56 @@ export default function EventDetailPage() {
         </div>
       </div>
 
-      {isCoach && (
-        <div className="type-toggle">
-          <button type="button" className={view === 'lineup' ? 'active' : ''} onClick={() => setView('lineup')}>
-            Lineup
-          </button>
-          <button type="button" className={view === 'results' ? 'active' : ''} onClick={() => setView('results')}>
-            Record Results
-          </button>
-        </div>
-      )}
-
       {entries.length === 0 && <p className="empty-state">No entries in this lineup yet.</p>}
 
-      {view === 'results' && isCoach ? (
-        <RecordResultsPanel event={event} entries={entries} resultsVersion={resultsVersion} onChanged={reloadEntries} />
-      ) : (
-        <div className="lineup-list">
-          {entries.map((entry, index) => (
-            <div key={entry.id} className="lineup-row">
-              <div className="lineup-time">{formatTime(entry.scheduled_time)}</div>
-              <div className="lineup-details">
-                <div className="lineup-event-name">{entry.event_name}</div>
-                {entry.event_entry_athletes.length > 0 ? (
-                  groupAthletesByTeam(entry.event_entry_athletes).map(([label, teamAthletes]) => (
-                    <div className="lineup-athletes" key={label || 'default'}>
-                      {label && <span className="lineup-team-label">{label}: </span>}
-                      {teamAthletes.map((ea) => ea.profiles?.name || 'Unnamed').join(', ')}
-                    </div>
-                  ))
-                ) : (
-                  <div className="lineup-athletes">No athletes assigned</div>
-                )}
-              </div>
-              {isCoach && (
-                <div className="lineup-actions">
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => handleMove(index, -1)}
-                    disabled={index === 0}
-                    aria-label="Move entry up"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => handleMove(index, 1)}
-                    disabled={index === entries.length - 1}
-                    aria-label="Move entry down"
-                  >
-                    ↓
-                  </button>
-                  <button type="button" className="link-button" onClick={() => startEdit(entry)}>
-                    Edit
-                  </button>
-                  <button type="button" className="link-button danger" onClick={() => handleDelete(entry.id)}>
-                    Delete
-                  </button>
-                </div>
+      <div className="lineup-list">
+        {entries.map((entry, index) => (
+          <div key={entry.id} className="lineup-row">
+            <div className="lineup-time">{formatTime(entry.scheduled_time)}</div>
+            <div className="lineup-details">
+              <div className="lineup-event-name">{entry.event_name}</div>
+              {entry.event_entry_athletes.length > 0 ? (
+                groupAthletesByTeam(entry.event_entry_athletes).map(([label, teamAthletes]) => (
+                  <div className="lineup-athletes" key={label || 'default'}>
+                    {label && <span className="lineup-team-label">{label}: </span>}
+                    {teamAthletes.map((ea) => ea.profiles?.name || 'Unnamed').join(', ')}
+                  </div>
+                ))
+              ) : (
+                <div className="lineup-athletes">No athletes assigned</div>
               )}
             </div>
-          ))}
-        </div>
-      )}
+            {isCoach && (
+              <div className="lineup-actions">
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => handleMove(index, -1)}
+                  disabled={index === 0}
+                  aria-label="Move entry up"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => handleMove(index, 1)}
+                  disabled={index === entries.length - 1}
+                  aria-label="Move entry down"
+                >
+                  ↓
+                </button>
+                <button type="button" className="link-button" onClick={() => startEdit(entry)}>
+                  Edit
+                </button>
+                <button type="button" className="link-button danger" onClick={() => handleDelete(entry.id)}>
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

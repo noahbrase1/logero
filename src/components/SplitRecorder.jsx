@@ -164,9 +164,9 @@ function buildInitialEntries(athletes, workouts, assignmentByAthleteId) {
 // Recorder" section. `athletes` is the same alphabetically-sorted roster
 // CoachAssignmentsPage already passes to AssignmentGrid; display order can
 // be locally reordered (see athleteOrder below) without affecting that.
-export default function SplitRecorder({ athletes }) {
+export default function SplitRecorder({ athletes, initialDate }) {
   const { showToast } = useToast()
-  const [date, setDate] = useState(() => toDateStr(new Date()))
+  const [date, setDate] = useState(() => initialDate || toDateStr(new Date()))
   const [loadingDay, setLoadingDay] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [dayAssignments, setDayAssignments] = useState([])

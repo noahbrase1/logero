@@ -16,7 +16,6 @@ import MetricCardRow from '../components/MetricCardRow'
 import Modal from '../components/Modal'
 import QuickNoteForm from '../components/QuickNoteForm'
 import { SkeletonList } from '../components/Skeleton'
-import SplitRecorder from '../components/SplitRecorder'
 import WeeklyMileageSection from '../components/WeeklyMileageSection'
 import WorkoutListItem from '../components/WorkoutListItem'
 import { useToast } from '../context/ToastContext'
@@ -255,7 +254,7 @@ export default function CoachAssignmentsPage() {
         )}
       </div>
 
-      {canCreate && view !== 'splits' && (
+      {canCreate && (
         <div className="export-day-toolbar">
           <label>
             Export day
@@ -266,7 +265,7 @@ export default function CoachAssignmentsPage() {
           </button>
         </div>
       )}
-      {view !== 'splits' && exportError && <p className="form-error">{exportError}</p>}
+      {exportError && <p className="form-error">{exportError}</p>}
 
       <div className="type-toggle">
         {canCreate && (
@@ -277,16 +276,9 @@ export default function CoachAssignmentsPage() {
         <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
           Logs
         </button>
-        {canCreate && (
-          <button type="button" className={view === 'splits' ? 'active' : ''} onClick={() => setView('splits')}>
-            Record Splits
-          </button>
-        )}
       </div>
 
-      {view === 'splits' && canCreate ? (
-        <SplitRecorder athletes={athletes} />
-      ) : view === 'grid' && canCreate ? (
+      {view === 'grid' && canCreate ? (
         <AssignmentGrid athletes={athletes} coachId={user.id} />
       ) : (
         <>

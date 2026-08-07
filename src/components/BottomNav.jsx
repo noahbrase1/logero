@@ -6,6 +6,7 @@ import {
   IconClipboardPlus,
   IconDotsCircleHorizontal,
   IconMessageCircle,
+  IconStopwatch,
   IconUsers,
 } from '@tabler/icons-react'
 import { useAuth } from '../context/AuthContext'
@@ -23,11 +24,21 @@ export default function BottomNav() {
   const isAdmin = profile?.role === 'admin'
   const [moreOpen, setMoreOpen] = useState(false)
 
-  // Same order/labels as NavBar's desktop links — "Workouts" is also the
+  // Same order/labels as NavBar's desktop links, with one deliberate
+  // exception: a coach's 4th primary slot is Splits (a write-only tool, see
+  // SplitsPage.jsx), not Athletes — Athletes moves under More for a coach
+  // to make room. Admin has no access to Splits (read-only role, nothing to
+  // record), so admin's primary four are unchanged. "Workouts" is also the
   // coach/admin home page ("/"), folding in what used to be a separate
   // "Team Logs" nav destination.
-  const primaryItems =
-    isCoach || isAdmin
+  const primaryItems = isCoach
+    ? [
+        { to: '/', label: 'Workouts', Icon: IconClipboardList, end: true },
+        { to: '/events', label: 'Calendar', Icon: IconCalendarEvent },
+        { to: '/messages', label: 'Messages', Icon: IconMessageCircle },
+        { to: '/splits', label: 'Splits', Icon: IconStopwatch },
+      ]
+    : isAdmin
       ? [
           { to: '/', label: 'Workouts', Icon: IconClipboardList, end: true },
           { to: '/events', label: 'Calendar', Icon: IconCalendarEvent },
@@ -40,8 +51,13 @@ export default function BottomNav() {
           { to: '/messages', label: 'Messages', Icon: IconMessageCircle },
         ]
 
-  const moreItems =
-    isCoach || isAdmin
+  const moreItems = isCoach
+    ? [
+        { to: '/roster', label: 'Athletes' },
+        { to: '/settings', label: 'Team Theme' },
+        { to: '/account', label: 'Account' },
+      ]
+    : isAdmin
       ? [
           { to: '/settings', label: 'Team Theme' },
           { to: '/account', label: 'Account' },

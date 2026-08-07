@@ -4059,6 +4059,76 @@ button.link-button.danger {
   color: var(--text-muted);
 }
 
+/* --- Splits page: the single day-first entry point for both practice
+   split recording and meet results recording (replaces the old "Record
+   Splits" tab on Assignments and "Record Results" toggle on Meet Lineup —
+   see SplitsPage.jsx). The option cards are plain <button>s, so every
+   property the base button rule sets gets an explicit override here rather
+   than relying on cascade order — otherwise these would render as filled
+   accent buttons instead of neutral list cards. --- */
+
+.splits-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.splits-option-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  text-align: left;
+  font-weight: 400;
+  background: var(--surface);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-base), transform var(--transition-base);
+}
+
+.splits-option-card:hover:not(:disabled) {
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.splits-option-card svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.splits-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.splits-option-title {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.splits-option-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.splits-selection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.splits-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: flex-start;
+}
+
 /* --- Export day (assignments) --- */
 
 .export-day-toolbar {
