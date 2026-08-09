@@ -209,6 +209,14 @@ export default function SplitRecorder({ athletes, initialDate }) {
   // except by starting a new session, so each athlete's own split history
   // is independent of when or how often anyone else was tapped.
   const [lastTapMs, setLastTapMs] = useState({})
+  // Bumped on every tap and folded into each cell's key below — TimeTextInput
+  // only ever reads its own `value` prop once, on mount (see that
+  // component's header comment), so a tap updating `entries` from outside
+  // would otherwise never be visible on screen even though the state itself
+  // is correct. The same "remount via a changing key" trick this file
+  // already uses for columnLayoutKey (and RecordResultsPanel for its own
+  // resultsVersion).
+  const [stopwatchTapVersion, setStopwatchTapVersion] = useState(0)
   // Snapshot of `entries` at the moment Start was pressed, restored by
   // Cancel Session — entries' own arrays are never mutated in place (see
   // updateCell below), so holding a reference here is enough to roll back
@@ -331,6 +339,7 @@ export default function SplitRecorder({ athletes, initialDate }) {
     setLastTapMs({})
     stopwatch.reset()
     setStopwatchActive(false)
+    setStopwatchTapVersion((v) => v + 1)
   }
 
   // Split value = (current master clock time − this athlete's own last tap
@@ -347,6 +356,7 @@ export default function SplitRecorder({ athletes, initialDate }) {
     const last = lastTapMs[athleteId] || 0
     updateCell(nextIndex, athleteId, msToHms(now - last))
     setLastTapMs((prev) => ({ ...prev, [athleteId]: now }))
+    setStopwatchTapVersion((v) => v + 1)
   }
 
   // Every athlete's row is padded out to the same total column count — the
@@ -653,6 +663,7 @@ export default function SplitRecorder({ athletes, initialDate }) {
                           className={`split-recorder-value-cell${def.isSegmentStart ? ' split-recorder-segment-start' : ''}`}
                         >
                           <TimeTextInput
+                            key={`${athlete.id}-${i}-${stopwatchTapVersion}`}
                             value={entries[athlete.id]?.[i] || { hours: 0, minutes: 0, seconds: 0 }}
                             onChange={(v) => updateCell(i, athlete.id, v)}
                             ariaLabel={`${athlete.name || 'Athlete'} ${segmentDisplayName(def.seg)} rep ${def.repIndex + 1}`}

@@ -146,7 +146,16 @@ function useIsNarrowViewport() {
 // whole grid to a single column on iOS Safari (confirmed on-device; desktop
 // rendered the identical markup/data fine). The names pane never scrolls
 // horizontally at all, so it needs no sticky behavior to "stay visible."
-function ResultSegmentsGrid({ entry, athletes, segmentDrafts, updateSegmentDraft, draftKey, resultsVersion, onClear }) {
+function ResultSegmentsGrid({
+  entry,
+  athletes,
+  segmentDrafts,
+  updateSegmentDraft,
+  draftKey,
+  resultsVersion,
+  stopwatchTapVersion,
+  onClear,
+}) {
   const isNarrow = useIsNarrowViewport()
   const colWidth = isNarrow ? 150 : 100
 
@@ -211,7 +220,7 @@ function ResultSegmentsGrid({ entry, athletes, segmentDrafts, updateSegmentDraft
                 return (
                   <div key={i} className={`result-grid-value-cell ${segStart ? 'result-grid-segment-start' : ''}`}>
                     <TimeTextInput
-                      key={`${sKey}-${i}-${resultsVersion}`}
+                      key={`${sKey}-${i}-${resultsVersion}-${stopwatchTapVersion}`}
                       value={segments[col.segIndex].repTimes[col.repIndex]}
                       onChange={(v) =>
                         updateSegmentDraft(sKey, updateSegmentRepTime(segments, col.segIndex, col.repIndex, v))
@@ -274,6 +283,13 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
   // Snapshot of drafts/segmentDrafts at the moment Start was pressed,
   // restored by Cancel Session.
   const draftSnapshotRef = useRef(null)
+  // Bumped on every tap and folded (alongside resultsVersion) into every
+  // TimeTextInput's key — TimeTextInput only ever reads its own `value`
+  // prop once, on mount, so a tap updating drafts/segmentDrafts from
+  // outside would otherwise never be visible on screen even though the
+  // state itself is correct. Same trick resultsVersion already uses for a
+  // post-save reload.
+  const [stopwatchTapVersion, setStopwatchTapVersion] = useState(0)
 
   function groupKey(entryId, label) {
     return `${entryId}|${label || ''}`
@@ -347,6 +363,7 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
     setLastTapMs({})
     stopwatch.reset()
     setActiveStopwatchEntryId(null)
+    setStopwatchTapVersion((v) => v + 1)
   }
 
   // Split value = (current master clock time − this athlete's own last tap
@@ -375,6 +392,7 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
     }
 
     setLastTapMs((prev) => ({ ...prev, [athleteId]: now }))
+    setStopwatchTapVersion((v) => v + 1)
   }
 
   async function handleSaveEntry(entry) {
@@ -548,7 +566,7 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
                       <div className="result-row">
                         <span className="result-athlete-name">Team result</span>
                         <TimeTextInput
-                          key={`${teamKey}-${resultsVersion}`}
+                          key={`${teamKey}-${resultsVersion}-${stopwatchTapVersion}`}
                           value={drafts[teamKey] ?? resultToTime(teamResult)}
                           onChange={(v) => updateDraft(teamKey, v)}
                           ariaLabel={`Team result for ${entry.event_name}${label ? ` ${label}` : ''}`}
@@ -571,7 +589,7 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
                           <div className="result-row" key={ea.athlete_id}>
                             <span className="result-athlete-name">{ea.profiles?.name || 'Unnamed'}</span>
                             <TimeTextInput
-                              key={`${iKey}-${resultsVersion}`}
+                              key={`${iKey}-${resultsVersion}-${stopwatchTapVersion}`}
                               value={drafts[iKey] ?? saved}
                               onChange={(v) => updateDraft(iKey, v)}
                               ariaLabel={`Result for ${ea.profiles?.name || 'athlete'}`}
@@ -596,6 +614,7 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
                         updateSegmentDraft={updateSegmentDraft}
                         draftKey={draftKey}
                         resultsVersion={resultsVersion}
+                        stopwatchTapVersion={stopwatchTapVersion}
                         onClear={handleClearAthlete}
                       />
                     )}
