@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { IconChevronDown, IconChevronUp, IconX } from '@tabler/icons-react'
 import { fetchAssignmentsForCoach } from '../lib/assignments'
 import { fetchTeamWorkoutsByDate } from '../lib/workouts'
 import { recordSplitEntry } from '../lib/splitRecorder'
 import { mapWithConcurrency } from '../utils/concurrency'
 import { downloadSplitRecorderPdf } from '../utils/splitRecorderPdf'
+import { findNextOpenIndex, formatStopwatchClock, msToHms, useStopwatch } from '../utils/stopwatch'
 import { toDateStr } from '../utils/week'
 import {
   ASSIGNED_REPS_FIELD_BY_TYPE,
@@ -151,7 +152,9 @@ function buildInitialEntries(athletes, workouts, assignmentByAthleteId) {
       const columnCount = Math.max(1, Number(seg.reps) || 1)
       for (let i = 0; i < columnCount; i++) {
         const r = savedReps[i]
-        flatValues.push(r ? { hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds } : undefined)
+        flatValues.push(
+          r ? { hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds, centiseconds: r.time_centiseconds } : undefined
+        )
       }
     })
     initial[athlete.id] = flatValues
@@ -193,6 +196,24 @@ export default function SplitRecorder({ athletes, initialDate }) {
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+
+  // Live stopwatch mode — one master clock shared by the whole grid, tap a
+  // name to record that athlete's next split as (clock − their own last tap
+  // time), independent of every other athlete. See useStopwatch's own
+  // header comment for why elapsed time is wall-clock-anchored rather than
+  // tick-accumulated (accurate through a screen lock/backgrounded tab).
+  const stopwatch = useStopwatch()
+  const [stopwatchActive, setStopwatchActive] = useState(false)
+  // athleteId -> the master clock's elapsedMs at that athlete's last tap
+  // (or when the stopwatch started, for their first one) — never reset
+  // except by starting a new session, so each athlete's own split history
+  // is independent of when or how often anyone else was tapped.
+  const [lastTapMs, setLastTapMs] = useState({})
+  // Snapshot of `entries` at the moment Start was pressed, restored by
+  // Cancel Session — entries' own arrays are never mutated in place (see
+  // updateCell below), so holding a reference here is enough to roll back
+  // exactly, without a deep copy.
+  const entriesSnapshotRef = useRef(null)
 
   const assignmentByAthleteId = useMemo(() => {
     const map = new Map()
@@ -288,6 +309,45 @@ export default function SplitRecorder({ athletes, initialDate }) {
     }
     return map
   }, [athletes, perAthleteResolved])
+
+  function handleStartStopwatch() {
+    entriesSnapshotRef.current = entries
+    setLastTapMs({})
+    stopwatch.start()
+    setStopwatchActive(true)
+  }
+
+  // Ends the live clock but keeps whatever it recorded — the grid's own
+  // TimeTextInput cells (already showing those values, since taps write
+  // straight into the same `entries` state manual entry uses) are the
+  // review step; a mis-tap is fixed there exactly like a typo would be.
+  function handleFinishStopwatch() {
+    stopwatch.stop()
+    setStopwatchActive(false)
+  }
+
+  function handleCancelStopwatch() {
+    if (entriesSnapshotRef.current) setEntries(entriesSnapshotRef.current)
+    setLastTapMs({})
+    stopwatch.reset()
+    setStopwatchActive(false)
+  }
+
+  // Split value = (current master clock time − this athlete's own last tap
+  // time), landed in their next open column — never the raw clock reading.
+  // Each athlete's own last-tap time only ever advances on THEIR OWN tap,
+  // so two athletes tapped at wildly different rates never affect each
+  // other's math.
+  function handleStopwatchTap(athleteId) {
+    const defs = perAthleteColumnDefs.get(athleteId) || []
+    const nextIndex = findNextOpenIndex(entries[athleteId] || [], defs.length)
+    if (nextIndex === -1) return
+
+    const now = stopwatch.getElapsedMs()
+    const last = lastTapMs[athleteId] || 0
+    updateCell(nextIndex, athleteId, msToHms(now - last))
+    setLastTapMs((prev) => ({ ...prev, [athleteId]: now }))
+  }
 
   // Every athlete's row is padded out to the same total column count — the
   // longest of anyone's own structure — with the extra columns beyond an
@@ -456,6 +516,7 @@ export default function SplitRecorder({ athletes, initialDate }) {
           <input
             type="date"
             value={date}
+            disabled={stopwatchActive}
             onChange={(e) => {
               // Set together so the loading state covers the very next
               // render — otherwise there's one committed frame with the new
@@ -484,6 +545,48 @@ export default function SplitRecorder({ athletes, initialDate }) {
               against it.
             </p>
           )}
+
+          {!nobodyAssigned && (
+            <div className="stopwatch-panel">
+              {!stopwatchActive ? (
+                <button type="button" className="secondary" onClick={handleStartStopwatch}>
+                  Start Stopwatch
+                </button>
+              ) : (
+                <>
+                  <div className="stopwatch-clock">{formatStopwatchClock(stopwatch.elapsedMs)}</div>
+                  <div className="stopwatch-athlete-buttons">
+                    {orderedAthletes.map((athlete) => {
+                      const defs = perAthleteColumnDefs.get(athlete.id) || []
+                      if (defs.length === 0) return null
+                      const done = findNextOpenIndex(entries[athlete.id] || [], defs.length) === -1
+                      return (
+                        <button
+                          type="button"
+                          key={athlete.id}
+                          className={`stopwatch-athlete-button${done ? ' stopwatch-athlete-done' : ''}`}
+                          onClick={() => handleStopwatchTap(athlete.id)}
+                          disabled={done}
+                        >
+                          {athlete.name || 'Unnamed athlete'}
+                          {done && <span aria-hidden="true"> ✓</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="stopwatch-actions">
+                    <button type="button" onClick={handleFinishStopwatch}>
+                      Finish Session
+                    </button>
+                    <button type="button" className="link-button danger" onClick={handleCancelStopwatch}>
+                      Cancel Session
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="assignment-grid-wrap" key={columnLayoutKey}>
             <div
               className="split-recorder-grid"

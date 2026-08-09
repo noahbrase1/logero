@@ -1,13 +1,24 @@
 // Duration is stored/entered as total seconds; distance is in miles.
 
+// `totalSeconds` may carry a fractional (hundredths) component — see
+// hmsToSeconds, which folds a rep's own `centiseconds` field into its
+// return value the same way. A whole-number input (every pre-existing
+// caller, and any manually-typed time with no decimal) renders exactly as
+// before; a fractional one appends ".XX" to the seconds — this is the one
+// place stopwatch-recorded precision (see src/utils/stopwatch.js) actually
+// becomes visible, without a separate display path or touching any of this
+// function's other ~40 call sites.
 export function secondsToClock(totalSeconds) {
   if (totalSeconds === null || totalSeconds === undefined || Number.isNaN(totalSeconds)) return ''
-  const s = Math.round(totalSeconds)
+  const totalCentis = Math.round(totalSeconds * 100)
+  const s = Math.floor(totalCentis / 100)
+  const centis = totalCentis % 100
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
   const sec = s % 60
   const pad = (n) => String(n).padStart(2, '0')
-  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`
+  const secText = centis > 0 ? `${pad(sec)}.${pad(centis)}` : pad(sec)
+  return h > 0 ? `${h}:${pad(m)}:${secText}` : `${m}:${secText}`
 }
 
 // Returns pace as "m:ss /mi" given distance (miles) and duration (seconds).
@@ -70,11 +81,20 @@ export function formatTimeRange(startTime, endTime) {
 
 // --- Segment time (h/m/s object) <-> seconds ---
 
-export function hmsToSeconds({ hours = 0, minutes = 0, seconds = 0 } = {}) {
+// `centiseconds` is optional and only ever populated on the ACTUAL side
+// (running/swim/bike/other_segment_reps, event_entry_athletes/
+// event_entry_results) — never on a target/assigned time, which has no
+// hundredths column. Every pre-existing caller omits it and gets back
+// exactly the same whole-number total as before; a caller that does pass it
+// (WorkoutCard's actual-segment line, the stopwatch-recorded review grid,
+// etc.) gets a fractional total that flows straight into secondsToClock's
+// own ".XX" rendering.
+export function hmsToSeconds({ hours = 0, minutes = 0, seconds = 0, centiseconds = 0 } = {}) {
   const h = Number(hours) || 0
   const m = Number(minutes) || 0
   const s = Number(seconds) || 0
-  return h * 3600 + m * 60 + s
+  const cs = Number(centiseconds) || 0
+  return h * 3600 + m * 60 + s + cs / 100
 }
 
 export function secondsToHms(totalSeconds) {
@@ -158,17 +178,22 @@ export function eventCategoryLabel(category) {
 }
 
 // --- Flexible single-field time entry: "58" / "6:45" / "1:06:45", parsed
-// right-to-left (rightmost group is always seconds). Throws with a
+// right-to-left (rightmost group is always seconds), with an optional
+// trailing ".XX"/".X" hundredths part ("27.34", "1:14.3" — a lone digit is
+// treated as tenths, so ".3" -> 30 centiseconds). Throws with a
 // user-facing message on anything unrecognized.
 
 export function parseTimeInput(input) {
   const trimmed = String(input ?? '').trim()
-  if (trimmed === '') return { hours: 0, minutes: 0, seconds: 0 }
-  if (!/^\d+(:\d+){0,2}$/.test(trimmed)) {
-    throw new Error('Enter a time like 58, 6:45, or 1:06:45')
+  if (trimmed === '') return { hours: 0, minutes: 0, seconds: 0, centiseconds: 0 }
+
+  const match = trimmed.match(/^(\d+(?::\d+){0,2})(?:\.(\d{1,2}))?$/)
+  if (!match) {
+    throw new Error('Enter a time like 58, 6:45, 1:06:45, or 27.34')
   }
 
-  const parts = trimmed.split(':').map(Number)
+  const [, clockPart, fracPart] = match
+  const parts = clockPart.split(':').map(Number)
   let hours = 0
   let minutes = 0
   let seconds = 0
@@ -187,7 +212,9 @@ export function parseTimeInput(input) {
     throw new Error('Minutes must be less than 60')
   }
 
-  return { hours, minutes, seconds }
+  const centiseconds = fracPart ? Number(fracPart.length === 1 ? `${fracPart}0` : fracPart) : 0
+
+  return { hours, minutes, seconds, centiseconds }
 }
 
 // Formats a {hours,minutes,seconds} object back into the compact text a
@@ -203,7 +230,7 @@ export function formatTimeForInput(value) {
 export function summarizeReps(distanceMeters, reps) {
   const distanceMiles = metersToMiles(distanceMeters)
   const repSeconds = (reps || []).map((r) =>
-    hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds })
+    hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds, centiseconds: r.time_centiseconds })
   )
   const timesText = repSeconds.length > 0 ? repSeconds.map((s) => (s > 0 ? secondsToClock(s) : '—')).join(', ') : '—'
   const total = repSeconds.reduce((a, b) => a + b, 0)
@@ -358,7 +385,7 @@ function allLoggedRepsRecorded(segments, repsField) {
     const reps = repsField ? seg[repsField] || [] : []
     return (
       reps.length > 0 &&
-      reps.every((r) => hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds }) > 0)
+      reps.every((r) => hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds, centiseconds: r.time_centiseconds }) > 0)
     )
   })
 }
@@ -420,7 +447,7 @@ export function sumLoggedTimeSeconds(workout) {
   }
   return segments.reduce((total, seg) => {
     const repSeconds = (seg[repsField] || []).reduce(
-      (t, r) => t + hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds }),
+      (t, r) => t + hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds, centiseconds: r.time_centiseconds }),
       0
     )
     return total + repSeconds

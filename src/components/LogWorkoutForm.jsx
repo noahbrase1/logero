@@ -185,6 +185,7 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                 hours: r.time_hours || 0,
                 minutes: r.time_minutes || 0,
                 seconds: r.time_seconds || 0,
+                centiseconds: r.time_centiseconds || 0,
               })),
             }))
           )
@@ -200,6 +201,7 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                 hours: r.time_hours || 0,
                 minutes: r.time_minutes || 0,
                 seconds: r.time_seconds || 0,
+                centiseconds: r.time_centiseconds || 0,
               })),
             }))
           )
@@ -215,6 +217,7 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                 hours: r.time_hours || 0,
                 minutes: r.time_minutes || 0,
                 seconds: r.time_seconds || 0,
+                centiseconds: r.time_centiseconds || 0,
                 avgWatts: r.avg_watts ?? '',
                 avgCadence: r.avg_cadence ?? '',
               })),
@@ -232,6 +235,7 @@ export default function LogWorkoutForm({ workoutId, initialAssignmentId, initial
                 hours: r.time_hours || 0,
                 minutes: r.time_minutes || 0,
                 seconds: r.time_seconds || 0,
+                centiseconds: r.time_centiseconds || 0,
               })),
             }))
           )

@@ -52,6 +52,7 @@ async function insertRunningSegments(workoutId, segments) {
       time_hours: t.hours || 0,
       time_minutes: t.minutes || 0,
       time_seconds: t.seconds || 0,
+      time_centiseconds: t.centiseconds || 0,
     }))
 
     if (repRows.length > 0) {
@@ -88,6 +89,7 @@ async function insertSwimSegments(workoutId, segments) {
       time_hours: t.hours || 0,
       time_minutes: t.minutes || 0,
       time_seconds: t.seconds || 0,
+      time_centiseconds: t.centiseconds || 0,
     }))
 
     if (repRows.length > 0) {
@@ -126,6 +128,7 @@ async function insertBikeSegments(workoutId, segments) {
       time_hours: t.hours || 0,
       time_minutes: t.minutes || 0,
       time_seconds: t.seconds || 0,
+      time_centiseconds: t.centiseconds || 0,
       avg_watts: t.avgWatts !== '' && t.avgWatts != null ? Number(t.avgWatts) : null,
       avg_cadence: t.avgCadence !== '' && t.avgCadence != null ? Number(t.avgCadence) : null,
     }))
@@ -164,6 +167,7 @@ async function insertOtherSegments(workoutId, segments) {
       time_hours: t.hours || 0,
       time_minutes: t.minutes || 0,
       time_seconds: t.seconds || 0,
+      time_centiseconds: t.centiseconds || 0,
     }))
 
     if (repRows.length > 0) {

@@ -4129,6 +4129,64 @@ button.link-button.danger {
   align-self: flex-start;
 }
 
+/* --- Live Stopwatch mode (Split Recorder + Record Results) — one master
+   clock, tap a big per-athlete button to record their next split. Shared
+   class names/styling between the two tools since the interaction is
+   identical; see src/utils/stopwatch.js for the actual timing/delta math
+   both wire into their own grid state. --- */
+
+.stopwatch-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.stopwatch-clock {
+  font-size: 2.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--text-h);
+}
+
+.stopwatch-athlete-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.stopwatch-athlete-button {
+  flex: 1 1 140px;
+  min-height: 64px;
+  font-size: 1.05rem;
+}
+
+.stopwatch-athlete-button.stopwatch-athlete-done {
+  background: var(--success);
+  opacity: 0.6;
+}
+
+.stopwatch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.stopwatch-blocked-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0.35rem 0 0;
+}
+
 /* --- Export day (assignments) --- */
 
 .export-day-toolbar {

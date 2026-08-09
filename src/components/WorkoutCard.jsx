@@ -236,7 +236,7 @@ export function SegmentLine({ seg, type, kind, showLabel = true }) {
   const repSecondsList = repRows.map((r) =>
     isTarget
       ? hmsToSeconds({ hours: r.target_time_hours, minutes: r.target_time_minutes, seconds: r.target_time_seconds })
-      : hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds })
+      : hmsToSeconds({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds, centiseconds: r.time_centiseconds })
   )
   // A target segment saved before per-rep rows existed has none yet — fall
   // back to its old segment-level target_time_* as a single rep's worth.

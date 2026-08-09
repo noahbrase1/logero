@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import TimeTextInput from './TimeTextInput'
 import { emptyRepTime, makeEmptySegment } from './SegmentEditor'
 import { groupAthletesByTeam, looksLikeRelay } from '../utils/lineup'
@@ -10,13 +10,19 @@ import {
   singleSegmentFromTime,
 } from '../lib/meetResults'
 import { formatDistanceValue, formatTime, unitAbbrev } from '../utils/format'
+import { formatStopwatchClock, msToHms, useStopwatch } from '../utils/stopwatch'
 
 function resultToTime(row) {
-  return { hours: row?.result_hours || 0, minutes: row?.result_minutes || 0, seconds: row?.result_seconds || 0 }
+  return {
+    hours: row?.result_hours || 0,
+    minutes: row?.result_minutes || 0,
+    seconds: row?.result_seconds || 0,
+    centiseconds: row?.result_centiseconds || 0,
+  }
 }
 
-function hasTime({ hours, minutes, seconds } = {}) {
-  return (hours || 0) > 0 || (minutes || 0) > 0 || (seconds || 0) > 0
+function hasTime({ hours, minutes, seconds, centiseconds } = {}) {
+  return (hours || 0) > 0 || (minutes || 0) > 0 || (seconds || 0) > 0 || (centiseconds || 0) > 0
 }
 
 function findTeamResult(entry, label) {
@@ -49,7 +55,7 @@ function initialSegments(ea, entry) {
         repTimes: (s.running_segment_reps || [])
           .slice()
           .sort((a, b) => a.rep_number - b.rep_number)
-          .map((r) => ({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds })),
+          .map((r) => ({ hours: r.time_hours, minutes: r.time_minutes, seconds: r.time_seconds, centiseconds: r.time_centiseconds })),
       }))
   }
 
@@ -255,6 +261,20 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
   // open event also produce a >1-athlete group).
   const [relayOverrides, setRelayOverrides] = useState({})
 
+  // Live stopwatch mode, scoped to one lineup entry (race) at a time — see
+  // useStopwatch's own header comment for why elapsed time is wall-clock-
+  // anchored rather than tick-accumulated. Deliberately only ONE shared
+  // clock instance here, not one per entry: `activeStopwatchEntryId` is
+  // this file's enforcement of "only one race stopwatch running at once",
+  // so an athlete's time from one race can never end up mixed into
+  // another's clock.
+  const stopwatch = useStopwatch()
+  const [activeStopwatchEntryId, setActiveStopwatchEntryId] = useState(null)
+  const [lastTapMs, setLastTapMs] = useState({})
+  // Snapshot of drafts/segmentDrafts at the moment Start was pressed,
+  // restored by Cancel Session.
+  const draftSnapshotRef = useRef(null)
+
   function groupKey(entryId, label) {
     return `${entryId}|${label || ''}`
   }
@@ -275,6 +295,86 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
     if (teamAthletes.length <= 1) return false
     const gKey = groupKey(entry.id, label)
     return relayOverrides[gKey] ?? looksLikeRelay(entry.event_name)
+  }
+
+  // Which team-label group a given athlete belongs to within this entry —
+  // used by the stopwatch tap handler to decide whether their next split
+  // goes into their own single leg-time draft (relay) or their own
+  // segment/column set (individual heat), the same distinction the render
+  // below already makes per group.
+  function findAthleteGroup(entry, athleteId) {
+    return groupAthletesByTeam(entry.event_entry_athletes).find(([, teamAthletes]) =>
+      teamAthletes.some((ea) => ea.athlete_id === athleteId)
+    )
+  }
+
+  function isAthleteStopwatchDone(entry, athleteId) {
+    const [label, teamAthletes] = findAthleteGroup(entry, athleteId) || [null, []]
+    const ea = teamAthletes.find((a) => a.athlete_id === athleteId)
+    if (!ea) return true
+
+    if (isGroupRelay(entry, label, teamAthletes)) {
+      return hasTime(drafts[draftKey(entry.id, 'athlete', athleteId)] ?? resultToTime(ea))
+    }
+
+    const sKey = draftKey(entry.id, 'segments', athleteId)
+    const segments = segmentDrafts[sKey] ?? initialSegments(ea, entry)
+    const columns = flattenColumns(segments)
+    return columns.length > 0 && columns.every((col) => hasTime(segments[col.segIndex].repTimes[col.repIndex]))
+  }
+
+  function handleStartStopwatch(entryId) {
+    if (activeStopwatchEntryId && activeStopwatchEntryId !== entryId) return
+    draftSnapshotRef.current = { drafts, segmentDrafts }
+    setLastTapMs({})
+    setActiveStopwatchEntryId(entryId)
+    stopwatch.start()
+  }
+
+  // Ends the live clock but keeps whatever it recorded — the same drafts
+  // "Save results" already reads from, so the coach reviews/edits them
+  // exactly like manual entry before hitting Save.
+  function handleFinishStopwatch() {
+    stopwatch.stop()
+    setActiveStopwatchEntryId(null)
+  }
+
+  function handleCancelStopwatch() {
+    if (draftSnapshotRef.current) {
+      setDrafts(draftSnapshotRef.current.drafts)
+      setSegmentDrafts(draftSnapshotRef.current.segmentDrafts)
+    }
+    setLastTapMs({})
+    stopwatch.reset()
+    setActiveStopwatchEntryId(null)
+  }
+
+  // Split value = (current master clock time − this athlete's own last tap
+  // time), landed in their next open slot — a single leg-time draft for a
+  // relay athlete, or their own next unfilled segment/rep column for an
+  // individual heat. Each athlete's own last-tap time only advances on
+  // THEIR OWN tap, so athletes finishing at wildly different times never
+  // affect each other's math.
+  function handleStopwatchTap(entry, athleteId) {
+    if (isAthleteStopwatchDone(entry, athleteId)) return
+
+    const [label, teamAthletes] = findAthleteGroup(entry, athleteId) || [null, []]
+    const ea = teamAthletes.find((a) => a.athlete_id === athleteId)
+    const now = stopwatch.getElapsedMs()
+    const last = lastTapMs[athleteId] || 0
+    const value = msToHms(now - last)
+
+    if (isGroupRelay(entry, label, teamAthletes)) {
+      updateDraft(draftKey(entry.id, 'athlete', athleteId), value)
+    } else {
+      const sKey = draftKey(entry.id, 'segments', athleteId)
+      const segments = segmentDrafts[sKey] ?? initialSegments(ea, entry)
+      const columns = flattenColumns(segments)
+      const col = columns.find((c) => !hasTime(segments[c.segIndex].repTimes[c.repIndex]))
+      if (col) updateSegmentDraft(sKey, updateSegmentRepTime(segments, col.segIndex, col.repIndex, value))
+    }
+
+    setLastTapMs((prev) => ({ ...prev, [athleteId]: now }))
   }
 
   async function handleSaveEntry(entry) {
@@ -366,6 +466,58 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
           <div className="lineup-time">{formatTime(entry.scheduled_time)}</div>
           <div className="lineup-details">
             <div className="lineup-event-name">{entry.event_name}</div>
+
+            {entry.event_entry_athletes.length > 0 && (
+              <div className="stopwatch-panel">
+                {activeStopwatchEntryId === entry.id ? (
+                  <>
+                    <div className="stopwatch-clock">{formatStopwatchClock(stopwatch.elapsedMs)}</div>
+                    <div className="stopwatch-athlete-buttons">
+                      {entry.event_entry_athletes.map((ea) => {
+                        const done = isAthleteStopwatchDone(entry, ea.athlete_id)
+                        return (
+                          <button
+                            type="button"
+                            key={ea.athlete_id}
+                            className={`stopwatch-athlete-button${done ? ' stopwatch-athlete-done' : ''}`}
+                            onClick={() => handleStopwatchTap(entry, ea.athlete_id)}
+                            disabled={done}
+                          >
+                            {ea.profiles?.name || 'Unnamed'}
+                            {done && <span aria-hidden="true"> ✓</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div className="stopwatch-actions">
+                      <button type="button" onClick={handleFinishStopwatch}>
+                        Finish Session
+                      </button>
+                      <button type="button" className="link-button danger" onClick={handleCancelStopwatch}>
+                        Cancel Session
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => handleStartStopwatch(entry.id)}
+                      disabled={activeStopwatchEntryId !== null}
+                    >
+                      Start Stopwatch
+                    </button>
+                    {activeStopwatchEntryId && activeStopwatchEntryId !== entry.id && (
+                      <p className="stopwatch-blocked-hint">
+                        Finish or cancel the stopwatch running for{' '}
+                        {entries.find((e) => e.id === activeStopwatchEntryId)?.event_name || 'another event'} first.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             {entry.event_entry_athletes.length === 0 ? (
               <p className="empty-state">No athletes assigned.</p>

@@ -65,7 +65,7 @@ export async function fetchEventById(id) {
 // already recorded, not just the result_hours/minutes/seconds summary —
 // see "Meet Results (Record Results mode)" in CLAUDE.md.
 const ENTRY_SELECT =
-  '*, event_entry_athletes(athlete_id, team_label, result_hours, result_minutes, result_seconds, workout_id, profiles(id, name), workouts(id, running_segments(*, running_segment_reps(*)))), event_entry_results(*)'
+  '*, event_entry_athletes(athlete_id, team_label, result_hours, result_minutes, result_seconds, result_centiseconds, workout_id, profiles(id, name), workouts(id, running_segments(*, running_segment_reps(*)))), event_entry_results(*)'
 
 export async function fetchEventEntries(eventId) {
   const { data, error } = await supabase

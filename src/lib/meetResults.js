@@ -111,6 +111,7 @@ function cleanSegments(segments) {
         hours: t.hours || 0,
         minutes: t.minutes || 0,
         seconds: t.seconds || 0,
+        centiseconds: t.centiseconds || 0,
       })),
     }))
 }
@@ -161,10 +162,10 @@ export async function recordIndividualResult({ entryId, athleteId, name, notes, 
 // another user's row. `time` all-zero deletes the row instead of leaving a
 // stale 0:00 result behind.
 export async function saveTeamResult({ entryId, teamLabel, time }) {
-  const { hours = 0, minutes = 0, seconds = 0 } = time || {}
+  const { hours = 0, minutes = 0, seconds = 0, centiseconds = 0 } = time || {}
   const label = teamLabel || null
 
-  if (hours === 0 && minutes === 0 && seconds === 0) {
+  if (hours === 0 && minutes === 0 && seconds === 0 && centiseconds === 0) {
     let query = supabase.from('event_entry_results').delete().eq('entry_id', entryId)
     query = label ? query.eq('team_label', label) : query.is('team_label', null)
     const { error } = await query
@@ -181,6 +182,7 @@ export async function saveTeamResult({ entryId, teamLabel, time }) {
         result_hours: hours,
         result_minutes: minutes,
         result_seconds: seconds,
+        result_centiseconds: centiseconds,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'entry_id,team_label_key' }
