@@ -222,6 +222,28 @@ export default function SplitRecorder({ athletes, initialDate }) {
   // updateCell below), so holding a reference here is enough to roll back
   // exactly, without a deep copy.
   const entriesSnapshotRef = useRef(null)
+  // DOM node per "athleteId-columnIndex" cell, populated by each value
+  // cell's own ref below — used purely to scroll a just-recorded split into
+  // view (see scrollCellIntoView), never for reading/writing data.
+  const cellRefs = useRef(new Map())
+
+  function setCellRef(athleteId, index, el) {
+    const key = `${athleteId}-${index}`
+    if (el) cellRefs.current.set(key, el)
+    else cellRefs.current.delete(key)
+  }
+
+  // Brings the column a tap just filled into view — the grid can be many
+  // columns wide per athlete, and with the tap target now living in the
+  // sticky name cell itself (see the name-cell rendering below) rather than
+  // a separate button bar, there's nothing else keeping a fast-scrolling
+  // sheet in sync with what's actually being recorded. `inline: 'end'`
+  // keeps the newest split near the trailing edge, anticipating more
+  // columns to come; `block: 'nearest'` avoids any vertical page jump for
+  // a cell that's already vertically in view.
+  function scrollCellIntoView(athleteId, index) {
+    cellRefs.current.get(`${athleteId}-${index}`)?.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' })
+  }
 
   const assignmentByAthleteId = useMemo(() => {
     const map = new Map()
@@ -357,6 +379,7 @@ export default function SplitRecorder({ athletes, initialDate }) {
     updateCell(nextIndex, athleteId, msToHms(now - last))
     setLastTapMs((prev) => ({ ...prev, [athleteId]: now }))
     setStopwatchTapVersion((v) => v + 1)
+    scrollCellIntoView(athleteId, nextIndex)
   }
 
   // Every athlete's row is padded out to the same total column count — the
@@ -565,25 +588,7 @@ export default function SplitRecorder({ athletes, initialDate }) {
               ) : (
                 <>
                   <div className="stopwatch-clock">{formatStopwatchClock(stopwatch.elapsedMs)}</div>
-                  <div className="stopwatch-athlete-buttons">
-                    {orderedAthletes.map((athlete) => {
-                      const defs = perAthleteColumnDefs.get(athlete.id) || []
-                      if (defs.length === 0) return null
-                      const done = findNextOpenIndex(entries[athlete.id] || [], defs.length) === -1
-                      return (
-                        <button
-                          type="button"
-                          key={athlete.id}
-                          className={`stopwatch-athlete-button${done ? ' stopwatch-athlete-done' : ''}`}
-                          onClick={() => handleStopwatchTap(athlete.id)}
-                          disabled={done}
-                        >
-                          {athlete.name || 'Unnamed athlete'}
-                          {done && <span aria-hidden="true"> ✓</span>}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <p className="stopwatch-hint">Tap an athlete's name in the sheet below to record their next split.</p>
                   <div className="stopwatch-actions">
                     <button type="button" onClick={handleFinishStopwatch}>
                       Finish Session
@@ -609,25 +614,44 @@ export default function SplitRecorder({ athletes, initialDate }) {
                   <Fragment key={athlete.id}>
                     {renderDividerRow(index)}
                     <div className="split-recorder-name-cell" style={{ gridRow: 'span 2' }}>
-                      <span className="split-recorder-reorder-buttons">
-                        <button
-                          type="button"
-                          onClick={() => moveAthlete(athlete.id, -1)}
-                          disabled={index === 0}
-                          aria-label={`Move ${athlete.name || 'athlete'} up`}
-                        >
-                          <IconChevronUp size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveAthlete(athlete.id, 1)}
-                          disabled={index === orderedAthletes.length - 1}
-                          aria-label={`Move ${athlete.name || 'athlete'} down`}
-                        >
-                          <IconChevronDown size={14} />
-                        </button>
-                      </span>
-                      {athlete.name || 'Unnamed athlete'}
+                      {stopwatchActive ? (
+                        (() => {
+                          const done = defs.length === 0 || findNextOpenIndex(entries[athlete.id] || [], defs.length) === -1
+                          return (
+                            <button
+                              type="button"
+                              className={`split-recorder-name-tap${done ? ' split-recorder-name-tap-done' : ''}`}
+                              onClick={() => handleStopwatchTap(athlete.id)}
+                              disabled={done}
+                            >
+                              {athlete.name || 'Unnamed athlete'}
+                              {done && <span aria-hidden="true"> ✓</span>}
+                            </button>
+                          )
+                        })()
+                      ) : (
+                        <>
+                          <span className="split-recorder-reorder-buttons">
+                            <button
+                              type="button"
+                              onClick={() => moveAthlete(athlete.id, -1)}
+                              disabled={index === 0}
+                              aria-label={`Move ${athlete.name || 'athlete'} up`}
+                            >
+                              <IconChevronUp size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveAthlete(athlete.id, 1)}
+                              disabled={index === orderedAthletes.length - 1}
+                              aria-label={`Move ${athlete.name || 'athlete'} down`}
+                            >
+                              <IconChevronDown size={14} />
+                            </button>
+                          </span>
+                          {athlete.name || 'Unnamed athlete'}
+                        </>
+                      )}
                     </div>
                     {Array.from({ length: maxColumns }, (_, i) => {
                       const def = defs[i]
@@ -660,6 +684,7 @@ export default function SplitRecorder({ athletes, initialDate }) {
                       return (
                         <div
                           key={`d${i}`}
+                          ref={(el) => setCellRef(athlete.id, i, el)}
                           className={`split-recorder-value-cell${def.isSegmentStart ? ' split-recorder-segment-start' : ''}`}
                         >
                           <TimeTextInput

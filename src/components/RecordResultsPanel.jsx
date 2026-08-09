@@ -154,10 +154,25 @@ function ResultSegmentsGrid({
   draftKey,
   resultsVersion,
   stopwatchTapVersion,
+  stopwatchActive,
+  onStopwatchTap,
+  isStopwatchDone,
   onClear,
 }) {
   const isNarrow = useIsNarrowViewport()
   const colWidth = isNarrow ? 150 : 100
+  // DOM node per column index, populated by that column's own value cells
+  // below (every athlete's cell at a given column sits at the same
+  // horizontal offset, so any one of them works) — used purely to scroll a
+  // just-recorded split into view, never for reading/writing data.
+  const columnRefs = useRef(new Map())
+
+  function handleTap(athleteId) {
+    const columnIndex = onStopwatchTap(athleteId)
+    if (columnIndex != null) {
+      columnRefs.current.get(columnIndex)?.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' })
+    }
+  }
 
   const athleteData = athletes.map((ea) => {
     const sKey = draftKey(entry.id, 'segments', ea.athlete_id)
@@ -177,10 +192,23 @@ function ResultSegmentsGrid({
         <div className="result-grid-names-corner">Athlete</div>
         {athleteData.map(({ ea }) => {
           const saved = resultToTime(ea)
+          const done = stopwatchActive && isStopwatchDone(ea.athlete_id)
           return (
             <div className="result-grid-names-row" key={ea.athlete_id}>
-              <span>{ea.profiles?.name || 'Unnamed'}</span>
-              {hasTime(saved) && (
+              {stopwatchActive ? (
+                <button
+                  type="button"
+                  className={`result-athlete-name-tap${done ? ' result-athlete-name-tap-done' : ''}`}
+                  onClick={() => handleTap(ea.athlete_id)}
+                  disabled={done}
+                >
+                  {ea.profiles?.name || 'Unnamed'}
+                  {done && <span aria-hidden="true"> ✓</span>}
+                </button>
+              ) : (
+                <span>{ea.profiles?.name || 'Unnamed'}</span>
+              )}
+              {!stopwatchActive && hasTime(saved) && (
                 <button type="button" className="link-button danger" onClick={() => onClear(entry, ea.athlete_id)}>
                   Clear
                 </button>
@@ -218,7 +246,14 @@ function ResultSegmentsGrid({
                 }
                 const segStart = i > 0 && columns[i - 1] && col.segIndex !== columns[i - 1].segIndex
                 return (
-                  <div key={i} className={`result-grid-value-cell ${segStart ? 'result-grid-segment-start' : ''}`}>
+                  <div
+                    key={i}
+                    ref={(el) => {
+                      if (el) columnRefs.current.set(i, el)
+                      else columnRefs.current.delete(i)
+                    }}
+                    className={`result-grid-value-cell ${segStart ? 'result-grid-segment-start' : ''}`}
+                  >
                     <TimeTextInput
                       key={`${sKey}-${i}-${resultsVersion}-${stopwatchTapVersion}`}
                       value={segments[col.segIndex].repTimes[col.repIndex]}
@@ -371,15 +406,19 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
   // relay athlete, or their own next unfilled segment/rep column for an
   // individual heat. Each athlete's own last-tap time only advances on
   // THEIR OWN tap, so athletes finishing at wildly different times never
-  // affect each other's math.
+  // affect each other's math. Returns the column index just filled (or
+  // null for a relay leg, which has no columns) so ResultSegmentsGrid can
+  // scroll it into view — its own scroll pane is a separate component, so
+  // it can't discover that on its own.
   function handleStopwatchTap(entry, athleteId) {
-    if (isAthleteStopwatchDone(entry, athleteId)) return
+    if (isAthleteStopwatchDone(entry, athleteId)) return null
 
     const [label, teamAthletes] = findAthleteGroup(entry, athleteId) || [null, []]
     const ea = teamAthletes.find((a) => a.athlete_id === athleteId)
     const now = stopwatch.getElapsedMs()
     const last = lastTapMs[athleteId] || 0
     const value = msToHms(now - last)
+    let columnIndex = null
 
     if (isGroupRelay(entry, label, teamAthletes)) {
       updateDraft(draftKey(entry.id, 'athlete', athleteId), value)
@@ -387,12 +426,18 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
       const sKey = draftKey(entry.id, 'segments', athleteId)
       const segments = segmentDrafts[sKey] ?? initialSegments(ea, entry)
       const columns = flattenColumns(segments)
-      const col = columns.find((c) => !hasTime(segments[c.segIndex].repTimes[c.repIndex]))
-      if (col) updateSegmentDraft(sKey, updateSegmentRepTime(segments, col.segIndex, col.repIndex, value))
+      columnIndex = columns.findIndex((c) => !hasTime(segments[c.segIndex].repTimes[c.repIndex]))
+      if (columnIndex !== -1) {
+        const col = columns[columnIndex]
+        updateSegmentDraft(sKey, updateSegmentRepTime(segments, col.segIndex, col.repIndex, value))
+      } else {
+        columnIndex = null
+      }
     }
 
     setLastTapMs((prev) => ({ ...prev, [athleteId]: now }))
     setStopwatchTapVersion((v) => v + 1)
+    return columnIndex
   }
 
   async function handleSaveEntry(entry) {
@@ -490,23 +535,7 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
                 {activeStopwatchEntryId === entry.id ? (
                   <>
                     <div className="stopwatch-clock">{formatStopwatchClock(stopwatch.elapsedMs)}</div>
-                    <div className="stopwatch-athlete-buttons">
-                      {entry.event_entry_athletes.map((ea) => {
-                        const done = isAthleteStopwatchDone(entry, ea.athlete_id)
-                        return (
-                          <button
-                            type="button"
-                            key={ea.athlete_id}
-                            className={`stopwatch-athlete-button${done ? ' stopwatch-athlete-done' : ''}`}
-                            onClick={() => handleStopwatchTap(entry, ea.athlete_id)}
-                            disabled={done}
-                          >
-                            {ea.profiles?.name || 'Unnamed'}
-                            {done && <span aria-hidden="true"> ✓</span>}
-                          </button>
-                        )
-                      })}
-                    </div>
+                    <p className="stopwatch-hint">Tap an athlete's name below to record their next split.</p>
                     <div className="stopwatch-actions">
                       <button type="button" onClick={handleFinishStopwatch}>
                         Finish Session
@@ -585,16 +614,30 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
                       teamAthletes.map((ea) => {
                         const saved = resultToTime(ea)
                         const iKey = draftKey(entry.id, 'athlete', ea.athlete_id)
+                        const legActive = activeStopwatchEntryId === entry.id
+                        const legDone = legActive && isAthleteStopwatchDone(entry, ea.athlete_id)
                         return (
                           <div className="result-row" key={ea.athlete_id}>
-                            <span className="result-athlete-name">{ea.profiles?.name || 'Unnamed'}</span>
+                            {legActive ? (
+                              <button
+                                type="button"
+                                className={`result-athlete-name-tap${legDone ? ' result-athlete-name-tap-done' : ''}`}
+                                onClick={() => handleStopwatchTap(entry, ea.athlete_id)}
+                                disabled={legDone}
+                              >
+                                {ea.profiles?.name || 'Unnamed'}
+                                {legDone && <span aria-hidden="true"> ✓</span>}
+                              </button>
+                            ) : (
+                              <span className="result-athlete-name">{ea.profiles?.name || 'Unnamed'}</span>
+                            )}
                             <TimeTextInput
                               key={`${iKey}-${resultsVersion}-${stopwatchTapVersion}`}
                               value={drafts[iKey] ?? saved}
                               onChange={(v) => updateDraft(iKey, v)}
                               ariaLabel={`Result for ${ea.profiles?.name || 'athlete'}`}
                             />
-                            {hasTime(saved) && (
+                            {!legActive && hasTime(saved) && (
                               <button
                                 type="button"
                                 className="link-button danger"
@@ -615,6 +658,9 @@ export default function RecordResultsPanel({ event, entries, resultsVersion, onC
                         draftKey={draftKey}
                         resultsVersion={resultsVersion}
                         stopwatchTapVersion={stopwatchTapVersion}
+                        stopwatchActive={activeStopwatchEntryId === entry.id}
+                        onStopwatchTap={(athleteId) => handleStopwatchTap(entry, athleteId)}
+                        isStopwatchDone={(athleteId) => isAthleteStopwatchDone(entry, athleteId)}
                         onClear={handleClearAthlete}
                       />
                     )}
