@@ -4180,6 +4180,15 @@ button.link-button.danger {
    Record Results' name-column text (both the shared-grid names pane and a
    relay leg's own row) with one big button, so there's no separate button
    bar duplicating the same names shown just as bold text a moment ago.
+   Overrides the base button rule's own padding (0.65rem 1.2rem) down to
+   almost nothing — that padding is sized for a normal action button, not a
+   name packed into `.result-grid-names`' deliberately narrow
+   --result-names-w (84px desktop / 92px mobile, see that section's own
+   comment on why it's kept narrow on purpose), and left alone it ate
+   nearly all the space a name had to render in. Single-line + ellipsis
+   rather than wrapping: a fixed-height row has nowhere for a second line
+   to go, and this is exactly the same truncation `.result-grid-names-row
+   span` already used for the plain-text version of this same name.
    Sizing is scoped per container below rather than on the shared class
    itself: Split Recorder's name cell and the shared-grid names pane are
    each that button's only child (fill it), but a relay leg's own
@@ -4187,10 +4196,14 @@ button.link-button.danger {
    button alongside it — filling 100% width there would squeeze them out. */
 .split-recorder-name-tap,
 .result-athlete-name-tap {
+  display: block;
+  padding: 0.3rem 0.4rem;
   text-align: left;
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 700;
-  white-space: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .split-recorder-name-tap,
