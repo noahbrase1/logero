@@ -707,7 +707,7 @@ label {
 .page-subtitle {
   color: var(--text-muted);
   font-size: var(--font-size-sm);
-  margin-top: -0.5rem;
+  margin-top: 0;
 }
 
 /* --- Workout form --- */
