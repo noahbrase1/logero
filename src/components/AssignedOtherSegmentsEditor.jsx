@@ -14,6 +14,7 @@ export default function AssignedOtherSegmentsEditor({ segments, onChange }) {
       units={['miles', 'meters', 'km', 'feet', 'yards']}
       distanceUnitDefault="miles"
       showPace
+      showSplitSheetToggle
     />
   )
 }

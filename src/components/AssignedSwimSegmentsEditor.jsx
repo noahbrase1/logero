@@ -14,6 +14,7 @@ export default function AssignedSwimSegmentsEditor({ segments, onChange }) {
       labelPlaceholder="Label (optional) — e.g. Warm up, Freestyle repeats"
       units={['yards', 'meters', 'miles']}
       distanceUnitDefault="yards"
+      showSplitSheetToggle
     />
   )
 }

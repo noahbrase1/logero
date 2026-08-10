@@ -2470,6 +2470,23 @@ button.link-button.danger {
   cursor: not-allowed;
 }
 
+.segment-split-sheet-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex: initial;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.segment-split-sheet-toggle input {
+  margin: 0;
+  flex-shrink: 0;
+}
+
 .segment-reps {
   display: flex;
   flex-direction: column;

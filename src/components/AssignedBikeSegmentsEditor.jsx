@@ -15,6 +15,7 @@ export default function AssignedBikeSegmentsEditor({ segments, onChange }) {
       labelPlaceholder="Label (optional) — e.g. Warm up, Hill repeats"
       units={['miles', 'km']}
       distanceUnitDefault="miles"
+      showSplitSheetToggle
     />
   )
 }

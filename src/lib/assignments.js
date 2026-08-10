@@ -41,6 +41,7 @@ async function insertAssignedSegmentsWithReps(segmentsTable, repsTable, assigned
         target_time_hours: firstRep?.hours || 0,
         target_time_minutes: firstRep?.minutes || 0,
         target_time_seconds: firstRep?.seconds || 0,
+        exclude_from_splits: !!seg.excludeFromSplits,
       })
       .select()
       .single()
@@ -207,6 +208,7 @@ export function assignmentToFormPayload(assignment) {
         distanceUnit: s.distance_unit,
         reps: s.reps,
         repTimes,
+        excludeFromSplits: !!s.exclude_from_splits,
       }
     })
 

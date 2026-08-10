@@ -42,7 +42,12 @@ function segmentDisplayName(seg) {
 function resolveAthlete(athlete, assignmentByAthleteId) {
   const assignment = assignmentByAthleteId.get(athlete.id)
   if (!assignment || !SPORT_TYPES.includes(assignment.type)) return null
-  const rawSegments = assignment[ASSIGNED_SEGMENTS_FIELD_BY_TYPE[assignment.type]] || []
+  // A coach can mark a segment (e.g. a warm-up) "don't show on split
+  // sheet" — it stays part of the assignment everywhere else (Grid,
+  // calendar, WorkoutCard), just never gets a column here.
+  const rawSegments = (assignment[ASSIGNED_SEGMENTS_FIELD_BY_TYPE[assignment.type]] || []).filter(
+    (seg) => !seg.exclude_from_splits
+  )
   if (rawSegments.length === 0) return null
 
   const segments = rawSegments.map((seg) => ({

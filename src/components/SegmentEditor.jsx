@@ -15,6 +15,7 @@ export function makeEmptySegment({ distanceUnit, extraRepFields } = {}) {
     distanceUnit,
     reps: 1,
     repTimes: [emptyRepTime(extraRepFields)],
+    excludeFromSplits: false,
   }
 }
 
@@ -34,6 +35,10 @@ export function makeEmptySegment({ distanceUnit, extraRepFields } = {}) {
 // `repExtraFields`: optional per-rep inputs beyond the time itself (bike's
 // avg watts/cadence — logging only, since a coach doesn't assign a target
 // for those).
+// `showSplitSheetToggle` (assigning only — see AssignedSegmentsEditor.jsx
+// etc.): renders a per-segment "Don't show segment on split sheet"
+// checkbox, so a coach can keep e.g. a warm-up off the Split Recorder's
+// grid while a repeats segment in the same assignment still gets columns.
 export default function SegmentEditor({
   segments,
   onChange,
@@ -43,6 +48,7 @@ export default function SegmentEditor({
   distanceUnitDefault,
   showPace = false,
   repExtraFields = [],
+  showSplitSheetToggle = false,
 }) {
   function updateSegment(index, patch) {
     onChange(segments.map((s, i) => (i === index ? { ...s, ...patch } : s)))
@@ -170,6 +176,17 @@ export default function SegmentEditor({
                 <input type="number" min="1" value={seg.reps} onChange={(e) => updateReps(i, e.target.value)} />
               </label>
             </div>
+
+            {showSplitSheetToggle && (
+              <label className="segment-split-sheet-toggle">
+                <input
+                  type="checkbox"
+                  checked={!!seg.excludeFromSplits}
+                  onChange={(e) => updateSegment(i, { excludeFromSplits: e.target.checked })}
+                />
+                Don't show segment on split sheet
+              </label>
+            )}
 
             <div className="segment-reps">
               {seg.repTimes.map((repTime, repIndex) => {
