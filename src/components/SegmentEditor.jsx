@@ -15,7 +15,7 @@ export function makeEmptySegment({ distanceUnit, extraRepFields } = {}) {
     distanceUnit,
     reps: 1,
     repTimes: [emptyRepTime(extraRepFields)],
-    excludeFromSplits: false,
+    includeOnSplits: false,
   }
 }
 
@@ -36,9 +36,11 @@ export function makeEmptySegment({ distanceUnit, extraRepFields } = {}) {
 // avg watts/cadence — logging only, since a coach doesn't assign a target
 // for those).
 // `showSplitSheetToggle` (assigning only — see AssignedSegmentsEditor.jsx
-// etc.): renders a per-segment "Don't show segment on split sheet"
-// checkbox, so a coach can keep e.g. a warm-up off the Split Recorder's
-// grid while a repeats segment in the same assignment still gets columns.
+// etc.): renders a per-segment "Include on split sheet" checkbox, opt-in —
+// a segment only gets a Split Recorder column if explicitly checked, so a
+// coach checks just the repeats segment(s) to keep e.g. a warm-up off the
+// sheet entirely. An assignment with nothing checked at all simply has no
+// split sheet for that athlete (see resolveAthlete() in SplitRecorder.jsx).
 export default function SegmentEditor({
   segments,
   onChange,
@@ -181,10 +183,10 @@ export default function SegmentEditor({
               <label className="segment-split-sheet-toggle">
                 <input
                   type="checkbox"
-                  checked={!!seg.excludeFromSplits}
-                  onChange={(e) => updateSegment(i, { excludeFromSplits: e.target.checked })}
+                  checked={!!seg.includeOnSplits}
+                  onChange={(e) => updateSegment(i, { includeOnSplits: e.target.checked })}
                 />
-                Don't show segment on split sheet
+                Include on split sheet
               </label>
             )}
 

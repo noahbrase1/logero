@@ -37,16 +37,19 @@ function segmentDisplayName(seg) {
 // athlete's columns already fully derived from their own data, that panel
 // was pure redundant clutter — see CLAUDE.md's "Split Recorder" section).
 // Returns null when this athlete simply has nothing to record against: no
-// assignment that day, a lifting assignment (no splits concept), or an
-// assignment with no segments.
+// assignment that day, a lifting assignment (no splits concept), an
+// assignment with no segments, or an assignment where the coach didn't
+// check "Include on split sheet" on any segment at all.
 function resolveAthlete(athlete, assignmentByAthleteId) {
   const assignment = assignmentByAthleteId.get(athlete.id)
   if (!assignment || !SPORT_TYPES.includes(assignment.type)) return null
-  // A coach can mark a segment (e.g. a warm-up) "don't show on split
-  // sheet" — it stays part of the assignment everywhere else (Grid,
-  // calendar, WorkoutCard), just never gets a column here.
+  // Opt-in: a segment (e.g. a repeats set) only gets a column here if the
+  // coach explicitly checked "Include on split sheet" for it — it still
+  // stays part of the assignment everywhere else (Grid, calendar,
+  // WorkoutCard) regardless of this flag. Nothing checked at all means no
+  // split sheet for this athlete, same as having no assignment.
   const rawSegments = (assignment[ASSIGNED_SEGMENTS_FIELD_BY_TYPE[assignment.type]] || []).filter(
-    (seg) => !seg.exclude_from_splits
+    (seg) => seg.include_on_splits
   )
   if (rawSegments.length === 0) return null
 
