@@ -72,13 +72,41 @@ export default function WorkoutCard({ workout, showAthleteName = false, hideEdit
   )
 }
 
+// Pairs each actual segment with its corresponding target segment by
+// content — (distance_value, distance_unit) first, label only as a
+// tiebreaker among multiple same-distance candidates — the same convention
+// matchSegmentsToSaved() in SplitRecorder.jsx already uses for an identical
+// problem. NOT positional: a logged workout's segments no longer reliably
+// line up index-for-index with the assignment's own segment order once a
+// coach can selectively include only some assigned segments on the split
+// sheet (see split_sheet_segment_visibility_schema.sql) — Split Recorder
+// then only ever saves the included ones, so e.g. a skipped warm-up would
+// otherwise shift every later segment's actual out of alignment with its
+// real target. Any target left unmatched (not yet logged) is appended
+// afterward in its own original order.
+function pairSegmentsWithTargets(loggedSegments, targetSegments) {
+  const remaining = targetSegments.map((t, idx) => ({ t, idx }))
+  const rows = loggedSegments.map((actual) => {
+    const distance = Number(actual.distance_value)
+    const label = (actual.label || '').trim().toLowerCase()
+    const sameDistance = remaining.filter(({ t }) => Number(t.distance_value) === distance && t.distance_unit === actual.distance_unit)
+    if (sameDistance.length === 0) return { actualSeg: actual, targetSeg: null }
+    const matched = (label && sameDistance.find(({ t }) => (t.label || '').trim().toLowerCase() === label)) || sameDistance[0]
+    remaining.splice(remaining.indexOf(matched), 1)
+    return { actualSeg: actual, targetSeg: matched.t }
+  })
+  remaining.forEach(({ t }) => rows.push({ actualSeg: null, targetSeg: t }))
+  return rows
+}
+
 // Shared body for running/swim/bike/other: a minimal thumbnail (Total
 // distance — total time only when every segment's every rep actually has a
 // time recorded, see sumLoggedTimeSeconds — Prescribed total when the log
 // fulfills an assignment, and Effort) and a "View splits" dropdown revealing
 // each segment's own actual line directly above its prescribed line, paired
-// by position. Shown whenever there's any segment data at all, actual or
-// target, since the thumbnail itself never breaks down by segment.
+// by content (see pairSegmentsWithTargets). Shown whenever there's any
+// segment data at all, actual or target, since the thumbnail itself never
+// breaks down by segment.
 function ActualAndPrescribed({ workout, segments }) {
   const loggedSegments = segments || []
   const headline = loggedWorkoutHeadline(workout)
@@ -89,7 +117,7 @@ function ActualAndPrescribed({ workout, segments }) {
   const prescribedHeadline = assignment ? assignedWorkoutHeadline(assignment) : []
 
   const showSplitsToggle = loggedSegments.length > 0 || targetSegments.length > 0
-  const rowCount = Math.max(loggedSegments.length, targetSegments.length)
+  const rows = pairSegmentsWithTargets(loggedSegments, targetSegments)
 
   return (
     <>
@@ -112,8 +140,8 @@ function ActualAndPrescribed({ workout, segments }) {
           <summary>View splits</summary>
 
           <div className="segment-list">
-            {Array.from({ length: rowCount }, (_, i) => (
-              <SegmentPair key={i} type={workout.type} actualSeg={loggedSegments[i]} targetSeg={targetSegments[i]} />
+            {rows.map((row, i) => (
+              <SegmentPair key={i} type={workout.type} actualSeg={row.actualSeg} targetSeg={row.targetSeg} />
             ))}
           </div>
         </details>
